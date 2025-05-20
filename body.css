@@ -371,3 +371,72 @@ footer button:hover {
     color: white;
     /* Erbt andere Button-Stile vom generischen 'footer button' Selektor */
 }
+
+/* Blackjack Game Styles */
+#blackjack-game-section {
+    background-color: #e0f2f1; /* Tealish background */
+    padding: 15px;
+    margin-top: 15px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#blackjack-game-section h3 {
+    color: #00796b; /* Dark Teal */
+    margin-bottom: 15px;
+}
+
+.blackjack-hand-area {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #ffffff;
+    border: 1px solid #b2dfdb; /* Light Teal border */
+    border-radius: 4px;
+}
+
+.cards-display {
+    min-height: 30px; /* Space for cards */
+    padding: 5px;
+    font-family: 'Courier New', Courier, monospace; /* Monospace for card text */
+    font-size: 1.1em;
+    letter-spacing: 2px;
+}
+
+.cards-display .card {
+    display: inline-block;
+    padding: 5px 8px;
+    border: 1px solid #4db6ac; /* Medium Teal */
+    background-color: #f0f0f0;
+    margin-right: 5px;
+    border-radius: 3px;
+    min-width: 30px; /* Ensure cards have some width */
+    text-align: center;
+}
+
+#blackjack-controls button {
+    background-color: #009688; /* Teal */
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    margin: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#blackjack-controls button:hover {
+    background-color: #00796b; /* Darker Teal */
+}
+
+#blackjack-controls input[type="number"] {
+    padding: 6px;
+    margin-right: 10px;
+    border: 1px solid #757575;
+    border-radius: 4px;
+    width: 80px;
+}
+
+#blackjack-message {
+    margin-top: 10px;
+    font-style: italic;
+    color: #004d40; /* Darkest Teal */
+}

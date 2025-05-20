@@ -99,6 +99,28 @@
                     <button id="play-lottery-button">Los kaufen!</button>
                     <p>Letztes Ergebnis: <span id="lottery-result-display">Noch nicht gespielt.</span></p>
                 </section>
+                <hr>
+                <section id="blackjack-game-section">
+                    <h3>Blackjack (21)</h3>
+                    <div id="blackjack-table">
+                        <div class="blackjack-hand-area">
+                            <strong>Dealer's Hand (<span id="blackjack-dealer-score">0</span>):</strong>
+                            <div id="blackjack-dealer-cards" class="cards-display"></div>
+                        </div>
+                        <div class="blackjack-hand-area">
+                            <strong>Your Hand (<span id="blackjack-player-score">0</span>):</strong>
+                            <div id="blackjack-player-cards" class="cards-display"></div>
+                        </div>
+                        <div id="blackjack-controls">
+                            <label for="blackjack-bet-amount">Einsatz (SP):</label>
+                            <input type="number" id="blackjack-bet-amount" value="100" min="10">
+                            <button id="blackjack-deal-button">Deal</button>
+                            <button id="blackjack-hit-button" style="display:none;">Hit</button>
+                            <button id="blackjack-stand-button" style="display:none;">Stand</button>
+                        </div>
+                        <p id="blackjack-message">Setze deinen Einsatz und klicke auf "Deal".</p>
+                    </div>
+                </section>
                 <!-- Hier könnten zukünftige Casino-Spiele als weitere <section> Elemente hinzugefügt werden -->
             </div>
         </div>

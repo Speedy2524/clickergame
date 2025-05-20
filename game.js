@@ -26,6 +26,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const casinoModal = document.getElementById('casino-modal');
     const openCasinoButton = document.getElementById('open-casino-button');
     const closeModalButton = document.querySelector('#casino-modal .close-modal-button');
+    // Blackjack elements
+    const blackjackDealerCards = document.getElementById('blackjack-dealer-cards');
+    const blackjackPlayerCards = document.getElementById('blackjack-player-cards');
+    const blackjackDealerScore = document.getElementById('blackjack-dealer-score');
+    const blackjackPlayerScore = document.getElementById('blackjack-player-score');
+    const blackjackBetAmountInput = document.getElementById('blackjack-bet-amount');
+    const blackjackDealButton = document.getElementById('blackjack-deal-button');
+    const blackjackHitButton = document.getElementById('blackjack-hit-button');
+    const blackjackStandButton = document.getElementById('blackjack-stand-button');
+    const blackjackMessage = document.getElementById('blackjack-message');
 
     // --- Game State ---
     let gameState = {
@@ -66,6 +76,18 @@ document.addEventListener('DOMContentLoaded', () => {
             totalClicksMade: 0,
             lotteryPlays: 0,
             lotteryJackpots: 0,
+            // Blackjack stats can be added later
+        },
+        blackjack: {
+            deck: [],
+            playerHand: [],
+            dealerHand: [],
+            playerScore: 0,
+            dealerScore: 0,
+            betAmount: 0,
+            gameInProgress: false,
+            message: "Setze deinen Einsatz und klicke auf 'Deal'.",
+            dealerRevealed: false, // To control display of dealer's hole card
         },
         achievements: {
             unermuedlicherKlicker: {
@@ -299,6 +321,175 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI();
         checkAchievements();
     }
+
+    // --- Blackjack Logic ---
+    const SUITS = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
+    const SUIT_SYMBOLS = {
+        'H': '♥', // Herz
+        'D': '♦', // Karo
+        'C': '♣', // Kreuz
+        'S': '♠'  // Pik
+    };
+    const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+
+    // Hilfsfunktion für Verzögerungen
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function createDeck() {
+        gameState.blackjack.deck = [];
+        for (let suit of SUITS) {
+            for (let value of VALUES) {
+                gameState.blackjack.deck.push({ value, suit });
+            }
+        }
+    }
+
+    function shuffleDeck() {
+        for (let i = gameState.blackjack.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [gameState.blackjack.deck[i], gameState.blackjack.deck[j]] = [gameState.blackjack.deck[j], gameState.blackjack.deck[i]];
+        }
+    }
+
+    function getCardValue(card) {
+        if (['K', 'Q', 'J'].includes(card.value)) return 10;
+        if (card.value === 'A') return 11; // Ace can be 1 or 11
+        return parseInt(card.value);
+    }
+
+    function calculateHandValue(hand) {
+        let score = 0;
+        let aceCount = 0;
+        for (let card of hand) {
+            score += getCardValue(card);
+            if (card.value === 'A') aceCount++;
+        }
+        while (score > 21 && aceCount > 0) {
+            score -= 10; // Change Ace from 11 to 1
+            aceCount--;
+        }
+        return score;
+    }
+
+    async function dealCardAnimated(hand, isPlayerHand) {
+        if (gameState.blackjack.deck.length > 0) {
+            hand.push(gameState.blackjack.deck.pop());
+            if (isPlayerHand) gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
+            // Dealer score wird erst am Ende oder beim Aufdecken der Hole Card voll berechnet
+            renderBlackjackUI();
+            await delay(500); // 0.5 Sekunden Pause zwischen den Karten
+        }
+    }
+
+    async function startBlackjackGame() {
+        const bet = parseInt(blackjackBetAmountInput.value);
+        if (isNaN(bet) || bet <= 0) {
+            gameState.blackjack.message = "Ungültiger Einsatz.";
+            renderBlackjackUI();
+            return;
+        }
+        if (gameState.sp < bet) {
+            gameState.blackjack.message = "Nicht genug SP für diesen Einsatz.";
+            renderBlackjackUI();
+            return;
+        }
+
+        gameState.sp -= bet;
+        gameState.blackjack.betAmount = bet;
+        gameState.blackjack.gameInProgress = true;
+        gameState.blackjack.dealerRevealed = false;
+        gameState.blackjack.playerHand = [];
+        gameState.blackjack.dealerHand = [];
+        createDeck();
+        shuffleDeck();
+
+        // Karten nacheinander austeilen mit Animation/Verzögerung
+        await dealCardAnimated(gameState.blackjack.playerHand, true);
+        await dealCardAnimated(gameState.blackjack.dealerHand, false); // Dealers erste Karte (sichtbar)
+        await dealCardAnimated(gameState.blackjack.playerHand, true);
+        await dealCardAnimated(gameState.blackjack.dealerHand, false); // Dealers zweite Karte (verdeckt)
+
+        gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
+        gameState.blackjack.dealerScore = calculateHandValue(gameState.blackjack.dealerHand); // Full score for logic, UI will hide one
+
+        gameState.blackjack.message = "Deine Runde. Hit oder Stand?";
+        if (gameState.blackjack.playerScore === 21) {
+            gameState.blackjack.message = "Blackjack! Du gewinnst!";
+            await delay(1000); // Kurze Pause, um den Blackjack zu zeigen
+            endBlackjackRound(true); 
+        } else {
+            renderBlackjackUI(); // Sicherstellen, dass die UI nach dem Austeilen aktuell ist
+        }
+        updateUI(); // Update main SP display
+    }
+
+    async function blackjackPlayerHit() {
+        if (!gameState.blackjack.gameInProgress) return;
+        await dealCardAnimated(gameState.blackjack.playerHand, true);
+        gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
+        renderBlackjackUI(); // UI nach dem Ziehen aktualisieren
+
+        if (gameState.blackjack.playerScore > 21) {
+            gameState.blackjack.message = "Bust! Du hast verloren.";
+            await delay(1000);
+            endBlackjackRound(false);
+        } else if (gameState.blackjack.playerScore === 21) {
+            blackjackPlayerStand(); // Auto-stand on 21
+        }
+        renderBlackjackUI();
+    }
+
+    async function blackjackPlayerStand() {
+        if (!gameState.blackjack.gameInProgress) return;
+        gameState.blackjack.dealerRevealed = true;
+        renderBlackjackUI(); // Zeige die verdeckte Karte des Dealers
+        await delay(700); // Kurze Pause, bevor der Dealer zieht
+
+        // Dealer's turn
+        while (calculateHandValue(gameState.blackjack.dealerHand) < 17 && gameState.blackjack.dealerHand.length < 5) { // Dealer hits on soft 17 or less, max 5 cards
+            gameState.blackjack.message = "Dealer zieht...";
+            renderBlackjackUI();
+            await delay(700);
+            await dealCardAnimated(gameState.blackjack.dealerHand, false);
+            gameState.blackjack.dealerScore = calculateHandValue(gameState.blackjack.dealerHand); // Neuberechnung nach jeder Karte
+            renderBlackjackUI();
+        }
+        gameState.blackjack.dealerScore = calculateHandValue(gameState.blackjack.dealerHand);
+
+        if (gameState.blackjack.dealerScore > 21) {
+            gameState.blackjack.message = "Dealer Bust! Du gewinnst!";
+            endBlackjackRound(true);
+        } else if (gameState.blackjack.dealerScore > gameState.blackjack.playerScore) {
+            gameState.blackjack.message = "Dealer gewinnt.";
+            endBlackjackRound(false);
+        } else if (gameState.blackjack.playerScore > gameState.blackjack.dealerScore) {
+            gameState.blackjack.message = "Du gewinnst!";
+            endBlackjackRound(true);
+        } else {
+            gameState.blackjack.message = "Push (Unentschieden).";
+            endBlackjackRound(null); // Push
+        }
+        await delay(1000); // Pause, um das Ergebnis anzuzeigen
+        renderBlackjackUI();
+    }
+
+    function endBlackjackRound(playerWins) {
+        gameState.blackjack.gameInProgress = false;
+        if (playerWins === true) { // Player wins
+            // Blackjack (Natural 21 on first two cards) pays 3:2, other wins 1:1
+            const isPlayerBlackjack = gameState.blackjack.playerScore === 21 && gameState.blackjack.playerHand.length === 2;
+            const payout = isPlayerBlackjack ? Math.floor(gameState.blackjack.betAmount * 2.5) : gameState.blackjack.betAmount * 2;
+            gameState.sp += payout;
+        } else if (playerWins === null) { // Push
+            gameState.sp += gameState.blackjack.betAmount; // Return bet
+        }
+        // If playerWins is false, bet is already lost (deducted at start)
+        updateUI(); // Update main SP display
+        renderBlackjackUI(); // Update Blackjack UI to show final state and Deal button
+    }
+
     // --- Achievements Logic ---
     function checkAchievements() {
         let newAchievementUnlocked = false;
@@ -462,11 +653,51 @@ document.addEventListener('DOMContentLoaded', () => {
             playLotteryButton.disabled = gameState.sp < gameState.itLotteryCostSP;
         }
 
+        // Blackjack UI
+        if (blackjackMessage) blackjackMessage.textContent = gameState.blackjack.message;
+        if (blackjackDealButton) blackjackDealButton.style.display = gameState.blackjack.gameInProgress ? 'none' : 'inline-block';
+        if (blackjackHitButton) blackjackHitButton.style.display = gameState.blackjack.gameInProgress ? 'inline-block' : 'none';
+        if (blackjackStandButton) blackjackStandButton.style.display = gameState.blackjack.gameInProgress ? 'inline-block' : 'none';
+        if (blackjackBetAmountInput) blackjackBetAmountInput.disabled = gameState.blackjack.gameInProgress;
+
+        if (blackjackPlayerScore) blackjackPlayerScore.textContent = gameState.blackjack.playerScore;
+        if (blackjackDealerScore) {
+            // Only show full dealer score if game ended or dealer revealed
+            if (gameState.blackjack.dealerRevealed || !gameState.blackjack.gameInProgress) {
+                blackjackDealerScore.textContent = calculateHandValue(gameState.blackjack.dealerHand);
+            } else if (gameState.blackjack.dealerHand.length > 0) {
+                // Show value of the first (visible) card if game in progress and not revealed
+                blackjackDealerScore.textContent = getCardValue(gameState.blackjack.dealerHand[0]);
+            } else {
+                blackjackDealerScore.textContent = 0;
+            }
+        }
+
+        if (blackjackPlayerCards) {
+            blackjackPlayerCards.innerHTML = gameState.blackjack.playerHand.map(card => `<span class="card">${card.value}${SUIT_SYMBOLS[card.suit]}</span>`).join(' ');
+        }
+        if (blackjackDealerCards) {
+            if (gameState.blackjack.dealerRevealed || !gameState.blackjack.gameInProgress) {
+                blackjackDealerCards.innerHTML = gameState.blackjack.dealerHand.map(card => `<span class="card">${card.value}${SUIT_SYMBOLS[card.suit]}</span>`).join(' ');
+            } else if (gameState.blackjack.dealerHand.length > 0) {
+                // Show first card and a hidden card
+                blackjackDealerCards.innerHTML = `<span class="card">${gameState.blackjack.dealerHand[0].value}${SUIT_SYMBOLS[gameState.blackjack.dealerHand[0].suit]}</span> <span class="card">?</span>`;
+            } else {
+                blackjackDealerCards.innerHTML = '';
+            }
+        }
+
+
         // Casino Modal Button (immer aktivierbar, solange das Element existiert)
         // if (openCasinoButton) {
         //     openCasinoButton.disabled = false; // Normalerweise nicht nötig, es sei denn, es gäbe Bedingungen
         // }
     }
+
+    function renderBlackjackUI() { // Wrapper to call main updateUI which now handles blackjack parts
+        updateUI();
+    }
+
 
     function renderPerClickUpgrades() {
         perClickUpgradesList.innerHTML = '';
@@ -764,6 +995,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalClicksMade: 0,
                 lotteryPlays: 0,
                 lotteryJackpots: 0,
+        },
+        blackjack: { // Initial Blackjack state
+            deck: [], playerHand: [], dealerHand: [], playerScore: 0, dealerScore: 0,
+            betAmount: 0, gameInProgress: false,
+            message: "Setze deinen Einsatz und klicke auf 'Deal'.", dealerRevealed: false
             },
             itLotteryCostSP: 10000,
             itLotteryLastResult: "Noch nicht gespielt.",
@@ -890,6 +1126,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         if (playLotteryButton) playLotteryButton.addEventListener('click', playITLottery);
+        // Blackjack Listeners
+        if (blackjackDealButton) blackjackDealButton.addEventListener('click', startBlackjackGame);
+        if (blackjackHitButton) blackjackHitButton.addEventListener('click', blackjackPlayerHit);
+        if (blackjackStandButton) blackjackStandButton.addEventListener('click', blackjackPlayerStand);
+
 
         // loadGame(); // Versucht, beim Start aus localStorage zu laden - Deaktiviert, um stattdessen nach Seed zu fragen
         importGameStateFromSeed(); // Fragt beim Start nach einem Seed. Wenn abgebrochen, startet ein neues Spiel.
@@ -900,6 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(gameLoop, 100); // 100ms = 10 updates per second
 
         console.log("School District Digital Hero initialisiert!");
+        renderBlackjackUI(); // Initial render for Blackjack UI elements
     }
 
     init();
