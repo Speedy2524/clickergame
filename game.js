@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- DOM Elements ---
+    // --- Core Game DOM Elements ---
     const spDisplay = document.getElementById('sp-display');
     const uvDisplay = document.getElementById('uv-display');
     const pdcDisplay = document.getElementById('pdc-display');
@@ -18,28 +18,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetButton = document.getElementById('reset-button');
     const exportSeedButton = document.getElementById('export-seed-button'); // Add this button to your HTML
     const importSeedButton = document.getElementById('import-seed-button'); // Add this button to your HTML
-    // Gambling elements
-    const playLotteryButton = document.getElementById('play-lottery-button');
-    const lotteryCostDisplay = document.getElementById('lottery-cost-display');
-    const lotteryResultDisplay = document.getElementById('lottery-result-display');
+
     // Casino Modal elements
     const casinoModal = document.getElementById('casino-modal');
     const openCasinoButton = document.getElementById('open-casino-button');
     const closeModalButton = document.querySelector('#casino-modal .close-modal-button');
-    // Blackjack elements
-    const blackjackDealerCards = document.getElementById('blackjack-dealer-cards');
-    const blackjackPlayerCards = document.getElementById('blackjack-player-cards');
-    const blackjackDealerScore = document.getElementById('blackjack-dealer-score');
-    const blackjackPlayerScore = document.getElementById('blackjack-player-score');
-    const blackjackBetAmountInput = document.getElementById('blackjack-bet-amount');
-    const blackjackDealButton = document.getElementById('blackjack-deal-button');
-    const blackjackHitButton = document.getElementById('blackjack-hit-button');
-    const blackjackStandButton = document.getElementById('blackjack-stand-button');
-    const blackjackDoubleDownButton = document.getElementById('blackjack-double-button');
-    const blackjackMessage = document.getElementById('blackjack-message');
 
     // --- Game State ---
-    let gameState = {
+    export let gameState = { // Export gameState so other modules can import it
         sp: 0,
         uv: 0, // Upgrade Vouchers
         pdc: 0, // Prestige Derived Credits (als direkter Bonusfaktor, z.B. 0.01 = 1%)
@@ -277,259 +263,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return awardedOfflineEarnings;
     }
 
-    // --- Gambling Logic ---
-    function playITLottery() {
-        if (gameState.sp < gameState.itLotteryCostSP) {
-            gameState.itLotteryLastResult = "Nicht genug SP für ein Los!";
-            updateUI();
-            return;
-        }
-
-        gameState.sp -= gameState.itLotteryCostSP;
-        gameState.stats.lotteryPlays++;
-
-        const randomNumber = Math.random() * 100; // Zahl zwischen 0 und 99.99...
-        let resultMessage = "";
-        let spWon = 0;
-        let uvWon = 0;
-
-        if (randomNumber < 0.1) { // 0.1% Jackpot
-            spWon = gameState.itLotteryCostSP * 10;
-            uvWon = 5;
-            resultMessage = `JACKPOT! Du gewinnst ${formatNumber(spWon)} SP und ${uvWon} UV!`;
-            gameState.stats.lotteryJackpots++;
-        } else if (randomNumber < 0.5) { // 0.4% UV Win (0.1 + 0.4 = 0.5)
-            uvWon = 1;
-            resultMessage = `Glückstreffer! Du gewinnst ${uvWon} UV!`;
-        } else if (randomNumber < 3) { // 2.5% Large Win (0.5 + 2.5 = 3)
-            spWon = gameState.itLotteryCostSP * 5;
-            resultMessage = `Großer Gewinn! Du erhältst ${formatNumber(spWon)} SP!`;
-        } else if (randomNumber < 10) { // 7% Medium Win (3 + 7 = 10)
-            spWon = gameState.itLotteryCostSP * 2;
-            resultMessage = `Schöner Gewinn! Du erhältst ${formatNumber(spWon)} SP!`;
-        } else if (randomNumber < 25) { // 15% Break Even (10 + 15 = 25)
-            spWon = gameState.itLotteryCostSP;
-            resultMessage = `Einsatz zurück! Du erhältst ${formatNumber(spWon)} SP.`;
-        } else if (randomNumber < 50) { // 25% Small Win (25 + 25 = 50)
-            spWon = gameState.itLotteryCostSP * 0.5;
-            resultMessage = `Kleiner Trostpreis! Du erhältst ${formatNumber(spWon)} SP.`;
-        } else { // 50% Lose
-            resultMessage = "Leider nichts gewonnen. Versuche es erneut!";
-        }
-        gameState.sp += spWon;
-        gameState.uv += uvWon;
-        gameState.itLotteryLastResult = resultMessage;
-        updateUI();
-        checkAchievements();
-    }
-
-    // --- Blackjack Logic ---
-    const SUITS = ['H', 'D', 'C', 'S']; // Hearts, Diamonds, Clubs, Spades
-    const SUIT_SYMBOLS = {
-        'H': '♥', // Herz
-        'D': '♦', // Karo
-        'C': '♣', // Kreuz
-        'S': '♠'  // Pik
-    };
-    const VALUES = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-
     // Hilfsfunktion für Verzögerungen
-    function delay(ms) {
+    export function delay(ms) { // Export delay so other modules can use it
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function createDeck() {
-        gameState.blackjack.deck = [];
-        for (let suit of SUITS) {
-            for (let value of VALUES) {
-                gameState.blackjack.deck.push({ value, suit });
-            }
-        }
-    }
-
-    function shuffleDeck() {
-        for (let i = gameState.blackjack.deck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [gameState.blackjack.deck[i], gameState.blackjack.deck[j]] = [gameState.blackjack.deck[j], gameState.blackjack.deck[i]];
-        }
-    }
-
-    function getCardValue(card) {
-        if (['K', 'Q', 'J'].includes(card.value)) return 10;
-        if (card.value === 'A') return 11; // Ace can be 1 or 11
-        return parseInt(card.value);
-    }
-
-    function calculateHandValue(hand) {
-        let score = 0;
-        let aceCount = 0;
-        for (let card of hand) {
-            score += getCardValue(card);
-            if (card.value === 'A') aceCount++;
-        }
-        while (score > 21 && aceCount > 0) {
-            score -= 10; // Change Ace from 11 to 1
-            aceCount--;
-        }
-        return score;
-    }
-
-    async function dealCardAnimated(hand, isPlayerHand) {
-        if (gameState.blackjack.deck.length > 0) {
-            hand.push(gameState.blackjack.deck.pop());
-            if (isPlayerHand) gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
-            // Dealer score wird erst am Ende oder beim Aufdecken der Hole Card voll berechnet
-            renderBlackjackUI();
-            await delay(500); // 0.5 Sekunden Pause zwischen den Karten
-        }
-    }
-
-    async function startBlackjackGame() {
-        const bet = parseInt(blackjackBetAmountInput.value);
-        if (isNaN(bet) || bet <= 0) {
-            gameState.blackjack.message = "Ungültiger Einsatz.";
-            renderBlackjackUI();
-            return;
-        }
-        if (gameState.sp < bet) {
-            gameState.blackjack.message = "Nicht genug SP für diesen Einsatz.";
-            renderBlackjackUI();
-            return;
-        }
-
-        gameState.sp -= bet;
-        gameState.blackjack.betAmount = bet;
-        gameState.blackjack.gameInProgress = true;
-        gameState.blackjack.dealerRevealed = false;
-        gameState.blackjack.playerHand = [];
-        gameState.blackjack.dealerHand = [];
-        createDeck();
-        shuffleDeck();
-
-        // Karten nacheinander austeilen mit Animation/Verzögerung
-        await dealCardAnimated(gameState.blackjack.playerHand, true);
-        await dealCardAnimated(gameState.blackjack.dealerHand, false); // Dealers erste Karte (sichtbar)
-        await dealCardAnimated(gameState.blackjack.playerHand, true);
-        await dealCardAnimated(gameState.blackjack.dealerHand, false); // Dealers zweite Karte (verdeckt)
-
-        gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
-        gameState.blackjack.dealerScore = calculateHandValue(gameState.blackjack.dealerHand); // Full score for logic, UI will hide one
-
-        gameState.blackjack.message = "Deine Runde. Hit oder Stand?";
-        if (gameState.blackjack.playerScore === 21) {
-            gameState.blackjack.message = "Blackjack! Du gewinnst!";
-            await delay(1000); // Kurze Pause, um den Blackjack zu zeigen
-            endBlackjackRound(true); 
-            // Kein Double Down möglich bei Blackjack
-        } else {
-            renderBlackjackUI(); // Sicherstellen, dass die UI nach dem Austeilen aktuell ist
-        }
-        updateUI(); // Update main SP display
-    }
-
-    async function blackjackPlayerHit() {
-        if (!gameState.blackjack.gameInProgress) return;
-        if (blackjackDoubleDownButton) blackjackDoubleDownButton.style.display = 'none'; // Double Down nicht mehr möglich nach Hit
-        await dealCardAnimated(gameState.blackjack.playerHand, true);
-        gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
-        renderBlackjackUI(); // UI nach dem Ziehen aktualisieren
-
-        if (gameState.blackjack.playerScore > 21) {
-            gameState.blackjack.message = "Bust! Du hast verloren.";
-            await delay(1000);
-            endBlackjackRound(false);
-        } else if (gameState.blackjack.playerScore === 21) {
-            blackjackPlayerStand(); // Auto-stand on 21
-        }
-        renderBlackjackUI();
-    }
-
-    async function blackjackPlayerStand() {
-        if (!gameState.blackjack.gameInProgress) return;
-        if (blackjackDoubleDownButton) blackjackDoubleDownButton.style.display = 'none'; // Double Down nicht mehr möglich nach Stand
-        gameState.blackjack.dealerRevealed = true;
-        renderBlackjackUI(); // Zeige die verdeckte Karte des Dealers
-        await delay(700); // Kurze Pause, bevor der Dealer zieht
-
-        // Dealer's turn
-        while (calculateHandValue(gameState.blackjack.dealerHand) < 17 && gameState.blackjack.dealerHand.length < 5) { // Dealer hits on soft 17 or less, max 5 cards
-            gameState.blackjack.message = "Dealer zieht...";
-            renderBlackjackUI();
-            await delay(700);
-            await dealCardAnimated(gameState.blackjack.dealerHand, false);
-            gameState.blackjack.dealerScore = calculateHandValue(gameState.blackjack.dealerHand); // Neuberechnung nach jeder Karte
-            renderBlackjackUI();
-        }
-        gameState.blackjack.dealerScore = calculateHandValue(gameState.blackjack.dealerHand);
-
-        if (gameState.blackjack.dealerScore > 21) {
-            gameState.blackjack.message = "Dealer Bust! Du gewinnst!";
-            endBlackjackRound(true);
-        } else if (gameState.blackjack.dealerScore > gameState.blackjack.playerScore) {
-            gameState.blackjack.message = "Dealer gewinnt.";
-            endBlackjackRound(false);
-        } else if (gameState.blackjack.playerScore > gameState.blackjack.dealerScore) {
-            gameState.blackjack.message = "Du gewinnst!";
-            endBlackjackRound(true);
-        } else {
-            gameState.blackjack.message = "Push (Unentschieden).";
-            endBlackjackRound(null); // Push
-        }
-        await delay(1000); // Pause, um das Ergebnis anzuzeigen
-        renderBlackjackUI();
-    }
-
-    async function blackjackPlayerDoubleDown() {
-        if (!gameState.blackjack.gameInProgress || gameState.blackjack.playerHand.length !== 2) return;
-
-        const additionalBet = gameState.blackjack.betAmount;
-        if (gameState.sp < additionalBet) {
-            gameState.blackjack.message = "Nicht genug SP zum Verdoppeln!";
-            renderBlackjackUI();
-            return;
-        }
-
-        gameState.sp -= additionalBet;
-        gameState.blackjack.betAmount += additionalBet; // Einsatz im Spiel verdoppeln
-        updateUI(); // SP-Anzeige aktualisieren
-
-        gameState.blackjack.message = "Verdoppelt! Eine letzte Karte...";
-        if (blackjackHitButton) blackjackHitButton.style.display = 'none';
-        if (blackjackStandButton) blackjackStandButton.style.display = 'none';
-        if (blackjackDoubleDownButton) blackjackDoubleDownButton.style.display = 'none';
-        renderBlackjackUI(); // Nachricht anzeigen
-
-        await dealCardAnimated(gameState.blackjack.playerHand, true); // Eine Karte ziehen
-        gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
-        renderBlackjackUI(); // UI nach dem Ziehen aktualisieren
-
-        if (gameState.blackjack.playerScore > 21) {
-            gameState.blackjack.message = "Bust nach Double Down! Du hast verloren.";
-            await delay(1000);
-            endBlackjackRound(false);
-        } else {
-            // Nach Double Down ist der Spielerzug automatisch beendet (Stand)
-            await blackjackPlayerStand();
-        }
-    }
-
-    function endBlackjackRound(playerWins) {
-        gameState.blackjack.gameInProgress = false;
-        if (playerWins === true) { // Player wins
-            // Blackjack (Natural 21 on first two cards) pays 3:2, other wins 1:1
-            const isPlayerBlackjack = gameState.blackjack.playerScore === 21 && gameState.blackjack.playerHand.length === 2;
-            const payout = isPlayerBlackjack ? Math.floor(gameState.blackjack.betAmount * 2.5) : gameState.blackjack.betAmount * 2;
-            gameState.sp += payout;
-        } else if (playerWins === null) { // Push
-            gameState.sp += gameState.blackjack.betAmount; // Return bet
-        }
-        // If playerWins is false, bet is already lost (deducted at start)
-        updateUI(); // Update main SP display
-        renderBlackjackUI(); // Update Blackjack UI to show final state and Deal button
-    }
-
     // --- Achievements Logic ---
-    function checkAchievements() {
+    export function checkAchievements() { // Export this function
         let newAchievementUnlocked = false;
         for (const achId in gameState.achievements) {
             const ach = gameState.achievements[achId];
@@ -625,7 +365,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // --- Rendering Functions ---
 
-    function formatNumber(num) {
+    // Formatiert Zahlen für die Anzeige (z.B. 1000 -> 1.00K)
+    export function formatNumber(num) { // Export formatNumber
+        if (num === null || num === undefined) return "0"; // Add safety check
         if (num < 1e3) return num.toFixed(0);
         if (num < 1e6) return (num / 1e3).toFixed(2) + "K";
         if (num < 1e9) return (num / 1e6).toFixed(2) + "M";
@@ -634,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return num.toExponential(2);
     }
 
-    function updateUI() {
+    export function updateUI() { // Export updateUI
         if (spDisplay) spDisplay.textContent = formatNumber(gameState.sp);
         if (uvDisplay) uvDisplay.textContent = formatNumber(gameState.uv);
         if (pdcDisplay) {
@@ -680,67 +422,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Gambling UI
-        if (lotteryCostDisplay) {
-            lotteryCostDisplay.textContent = formatNumber(gameState.itLotteryCostSP);
-        }
-        if (lotteryResultDisplay) {
-            lotteryResultDisplay.textContent = gameState.itLotteryLastResult;
-        }
-        if (playLotteryButton) {
-            playLotteryButton.disabled = gameState.sp < gameState.itLotteryCostSP;
-        }
-
-        // Blackjack UI
-        if (blackjackMessage) blackjackMessage.textContent = gameState.blackjack.message;
-        if (blackjackDealButton) blackjackDealButton.style.display = gameState.blackjack.gameInProgress ? 'none' : 'inline-block';
-        if (blackjackHitButton) blackjackHitButton.style.display = gameState.blackjack.gameInProgress ? 'inline-block' : 'none';
-        if (blackjackStandButton) blackjackStandButton.style.display = gameState.blackjack.gameInProgress ? 'inline-block' : 'none';
-        if (blackjackDoubleDownButton) {
-            const canDouble = gameState.blackjack.gameInProgress &&
-                              gameState.blackjack.playerHand.length === 2 &&
-                              gameState.sp >= gameState.blackjack.betAmount; // Genug SP, um den *aktuellen* Einsatz nochmal zu setzen
-            blackjackDoubleDownButton.style.display = canDouble ? 'inline-block' : 'none';
-            blackjackDoubleDownButton.disabled = !canDouble; // Sicherstellen, dass er auch klickbar ist
-        }
-        if (blackjackBetAmountInput) blackjackBetAmountInput.disabled = gameState.blackjack.gameInProgress;
-
-        if (blackjackPlayerScore) blackjackPlayerScore.textContent = gameState.blackjack.playerScore;
-        if (blackjackDealerScore) {
-            // Only show full dealer score if game ended or dealer revealed
-            if (gameState.blackjack.dealerRevealed || !gameState.blackjack.gameInProgress) {
-                blackjackDealerScore.textContent = calculateHandValue(gameState.blackjack.dealerHand);
-            } else if (gameState.blackjack.dealerHand.length > 0) {
-                // Show value of the first (visible) card if game in progress and not revealed
-                blackjackDealerScore.textContent = getCardValue(gameState.blackjack.dealerHand[0]);
-            } else {
-                blackjackDealerScore.textContent = 0;
-            }
-        }
-
-        if (blackjackPlayerCards) {
-            blackjackPlayerCards.innerHTML = gameState.blackjack.playerHand.map(card => `<span class="card">${card.value}${SUIT_SYMBOLS[card.suit]}</span>`).join(' ');
-        }
-        if (blackjackDealerCards) {
-            if (gameState.blackjack.dealerRevealed || !gameState.blackjack.gameInProgress) {
-                blackjackDealerCards.innerHTML = gameState.blackjack.dealerHand.map(card => `<span class="card">${card.value}${SUIT_SYMBOLS[card.suit]}</span>`).join(' ');
-            } else if (gameState.blackjack.dealerHand.length > 0) {
-                // Show first card and a hidden card
-                blackjackDealerCards.innerHTML = `<span class="card">${gameState.blackjack.dealerHand[0].value}${SUIT_SYMBOLS[gameState.blackjack.dealerHand[0].suit]}</span> <span class="card">?</span>`;
-            } else {
-                blackjackDealerCards.innerHTML = '';
-            }
-        }
-
-
         // Casino Modal Button (immer aktivierbar, solange das Element existiert)
         // if (openCasinoButton) {
         //     openCasinoButton.disabled = false; // Normalerweise nicht nötig, es sei denn, es gäbe Bedingungen
         // }
-    }
-
-    function renderBlackjackUI() { // Wrapper to call main updateUI which now handles blackjack parts
-        updateUI();
     }
 
 
@@ -760,7 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             `;
             perClickUpgradesList.appendChild(itemDiv);
-            document.getElementById(`buy-click-upgrade-${upgrade.id}`).addEventListener('click', () => buyClickUpgrade(index));
+            // Event listener will be handled by delegation
         });
     }
 
@@ -784,7 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             `;
             automatedGeneratorsList.appendChild(itemDiv);
-            document.getElementById(`buy-generator-${generator.id}`).addEventListener('click', () => buyGenerator(index));
+            // Event listener will be handled by delegation
         });
     }
 
@@ -1141,6 +826,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // renderPrestigeUpgrades(); // To be implemented
     }
 
+    // --- Imports from other modules ---
+    import { initCasino } from './casino.js';
+
     // --- Initialization ---
     function init() {
         // Event Listeners
@@ -1150,6 +838,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (exportSeedButton) exportSeedButton.addEventListener('click', exportGameStateAsSeed);
         if (importSeedButton) importSeedButton.addEventListener('click', () => importGameStateFromSeed()); // Pass no arg to trigger prompt
         if (implementFirewallButton) implementFirewallButton.addEventListener('click', purchaseFirewallProject);
+
+        // Event Delegation for dynamic buttons
+        if (perClickUpgradesList) {
+            perClickUpgradesList.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.tagName === 'BUTTON' && target.id.startsWith('buy-click-upgrade-')) {
+                    const index = parseInt(target.dataset.index, 10);
+                    if (!isNaN(index)) {
+                        buyClickUpgrade(index);
+                    }
+                }
+            });
+        }
+        if (automatedGeneratorsList) {
+            automatedGeneratorsList.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.tagName === 'BUTTON' && target.id.startsWith('buy-generator-')) {
+                    const index = parseInt(target.dataset.index, 10);
+                    if (!isNaN(index)) {
+                        buyGenerator(index);
+                    }
+                }
+            });
+        }
 
         // Casino Modal Listeners
         if (openCasinoButton && casinoModal) {
@@ -1170,12 +882,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        if (playLotteryButton) playLotteryButton.addEventListener('click', playITLottery);
-        // Blackjack Listeners
-        if (blackjackDealButton) blackjackDealButton.addEventListener('click', startBlackjackGame);
-        if (blackjackHitButton) blackjackHitButton.addEventListener('click', blackjackPlayerHit);
-        if (blackjackStandButton) blackjackStandButton.addEventListener('click', blackjackPlayerStand);
-        if (blackjackDoubleDownButton) blackjackDoubleDownButton.addEventListener('click', blackjackPlayerDoubleDown);
+        // Initialize modules
+        initCasino();
 
 
         // loadGame(); // Versucht, beim Start aus localStorage zu laden - Deaktiviert, um stattdessen nach Seed zu fragen
@@ -1187,7 +895,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(gameLoop, 100); // 100ms = 10 updates per second
 
         console.log("School District Digital Hero initialisiert!");
-        renderBlackjackUI(); // Initial render for Blackjack UI elements
     }
 
     init();
