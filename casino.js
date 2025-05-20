@@ -1,25 +1,21 @@
-import { gameState, updateUI as updateMainUI, formatNumber, delay } from './game.js';
+import { gameState, updateUI as updateMainUI, formatNumber, delay, checkAchievements } from './game.js';
 
 // --- Casino DOM Elements ---
 // Lottery
-const playLotteryButton = document.getElementById('play-lottery-button');
-const lotteryCostDisplay = document.getElementById('lottery-cost-display');
-const lotteryResultDisplay = document.getElementById('lottery-result-display');
+let playLotteryButton, lotteryCostDisplay, lotteryResultDisplay;
 
 // Blackjack
-const blackjackDealerCardsEl = document.getElementById('blackjack-dealer-cards');
-const blackjackPlayerCardsEl = document.getElementById('blackjack-player-cards');
-const blackjackDealerScoreEl = document.getElementById('blackjack-dealer-score');
-const blackjackPlayerScoreEl = document.getElementById('blackjack-player-score');
-const blackjackBetAmountInputEl = document.getElementById('blackjack-bet-amount');
-const blackjackDealButtonEl = document.getElementById('blackjack-deal-button');
-const blackjackHitButtonEl = document.getElementById('blackjack-hit-button');
-const blackjackStandButtonEl = document.getElementById('blackjack-stand-button');
-const blackjackDoubleDownButtonEl = document.getElementById('blackjack-double-button');
-const blackjackMessageEl = document.getElementById('blackjack-message');
+let blackjackDealerCardsEl, blackjackPlayerCardsEl, blackjackDealerScoreEl,
+    blackjackPlayerScoreEl, blackjackBetAmountInputEl, blackjackDealButtonEl,
+    blackjackHitButtonEl, blackjackStandButtonEl, blackjackDoubleDownButtonEl,
+    blackjackMessageEl;
 
 // --- Lottery Logic ---
 function playITLottery() {
+    if (!playLotteryButton) { // Zusätzlicher Check, ob die Elemente initialisiert wurden
+        console.error("Lotterie-Button nicht initialisiert!");
+        return;
+    }
     if (gameState.sp < gameState.itLotteryCostSP) {
         gameState.itLotteryLastResult = "Nicht genug SP für ein Los!";
         renderLotteryCasinoUI();
@@ -63,7 +59,7 @@ function playITLottery() {
     
     renderLotteryCasinoUI();
     updateMainUI(); // Update global SP/UV display
-    // checkAchievements(); // This would need to be imported or handled via a callback/event system
+    checkAchievements(); // Jetzt können wir das aufrufen, da es aus game.js importiert wird
 }
 
 function renderLotteryCasinoUI() {
@@ -303,6 +299,22 @@ function renderBlackjackCasinoUI() {
 }
 
 export function initCasino() {
+    // Get DOM elements here, ensuring DOM is ready
+    playLotteryButton = document.getElementById('play-lottery-button');
+    lotteryCostDisplay = document.getElementById('lottery-cost-display');
+    lotteryResultDisplay = document.getElementById('lottery-result-display');
+
+    blackjackDealerCardsEl = document.getElementById('blackjack-dealer-cards');
+    blackjackPlayerCardsEl = document.getElementById('blackjack-player-cards');
+    blackjackDealerScoreEl = document.getElementById('blackjack-dealer-score'); // <-- Korrigiert
+    blackjackPlayerScoreEl = document.getElementById('blackjack-player-score');
+    blackjackBetAmountInputEl = document.getElementById('blackjack-bet-amount');
+    blackjackDealButtonEl = document.getElementById('blackjack-deal-button');
+    blackjackHitButtonEl = document.getElementById('blackjack-hit-button');
+    blackjackStandButtonEl = document.getElementById('blackjack-stand-button');
+    blackjackDoubleDownButtonEl = document.getElementById('blackjack-double-button');
+    blackjackMessageEl = document.getElementById('blackjack-message');
+
     if (playLotteryButton) playLotteryButton.addEventListener('click', playITLottery);
     if (blackjackDealButtonEl) blackjackDealButtonEl.addEventListener('click', startBlackjackGame);
     if (blackjackHitButtonEl) blackjackHitButtonEl.addEventListener('click', blackjackPlayerHit);
