@@ -63,16 +63,28 @@
                     <button id="prestige-button" style="display:none;">Systemüberholung (Prestige)</button>
                 </section>
             </div>
+
+            <section id="achievements-section">
+                <h2>Errungenschaften</h2>
+                <div id="achievements-list-container" class="achievements-container">
+                    <!-- Errungenschaften werden hier von JavaScript gerendert -->
+                </div>
+            </section>
         </main>
 
         <footer>
             <button id="export-seed-button">Als Seed Exportieren</button>
             <button id="import-seed-button">Von Seed Importieren</button>
             <button id="reset-button">Spiel Zurücksetzen (Hard)</button>
-            <p>Erfolge: <span id="achievements-display"><em>Kommt bald!</em></span></p>
         </footer>
     </div>
 
+    <div id="achievement-notification" class="achievement-toast" style="display:none;">
+        <h3>Errungenschaft freigeschaltet!</h3>
+        <p id="achievement-toast-name" style="font-weight: bold;"></p>
+        <p id="achievement-toast-tier"></p>
+        <p id="achievement-toast-reward-text" style="font-style: italic;"></p>
+    </div>
     <script src="game.js"></script>
 </body>
 </html>

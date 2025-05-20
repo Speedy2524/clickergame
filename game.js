@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const prestigeUpgradesList = document.getElementById('prestige-upgrades-list');
     const prestigeButton = document.getElementById('prestige-button');
 
+    const achievementsListContainer = document.getElementById('achievements-list-container');
     const resetButton = document.getElementById('reset-button');
     const exportSeedButton = document.getElementById('export-seed-button'); // Add this button to your HTML
     const importSeedButton = document.getElementById('import-seed-button'); // Add this button to your HTML
@@ -21,8 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Game State ---
     let gameState = {
         sp: 0,
-        uv: 0,
-        pdc: 0,
+        uv: 0, // Upgrade Vouchers
+        pdc: 0, // Prestige Derived Credits (als direkter Bonusfaktor, z.B. 0.01 = 1%)
         spPerClick: 1,
         totalSps: 0,
         clickUpgrades: [
@@ -50,7 +51,60 @@ document.addEventListener('DOMContentLoaded', () => {
         // prestige related (to be expanded)
         prestigesDone: 0,
         prestigeUpgrades: [], // e.g., { id: 'veteranDiscount', level: 0, effect: 0.01 }
-        lastSavedTimestamp: null
+        lastSavedTimestamp: null,
+        stats: { // Für Errungenschafts-Tracking
+            totalClicksMade: 0,
+            // Weitere Stats können hier hinzugefügt werden
+        },
+        achievements: {
+            unermuedlicherKlicker: {
+                name: 'Der Unermüdliche',
+                description: 'Klicke wiederholt auf den "Problem lösen"-Button.',
+                tiers: [
+                    { name: 'Bronze', value: 1000, reward: { sp: 10000 }, unlocked: false, desc: '1.000 Klicks.' },
+                    { name: 'Silber', value: 5000, reward: { sp: 50000 }, unlocked: false, desc: '5.000 Klicks.' },
+                    { name: 'Gold', value: 10000, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: '10.000 Klicks.' }
+                ],
+                checkType: 'stat', statProperty: 'totalClicksMade'
+            },
+            praktikantenDompteur: {
+                name: 'Praktikanten-Dompteur',
+                description: 'Stelle eine Armee von Helpdesk-Praktikanten ein.',
+                tiers: [
+                    { name: 'Bronze', value: 10, reward: { sp: 25000 }, unlocked: false, desc: '10 Praktikanten.' },
+                    { name: 'Silber', value: 25, reward: { sp: 100000, uv: 20 }, unlocked: false, desc: '25 Praktikanten.' },
+                    { name: 'Gold', value: 50, reward: { sp: 500000, uv: 50, pdc: 0.01 }, unlocked: false, desc: '50 Praktikanten.' }
+                ],
+                checkType: 'generatorCount', generatorId: 'helpdeskIntern'
+            },
+            automatisierungsAficionado: {
+                name: 'Automatisierungs-Aficionado',
+                description: 'Nutze eine Vielzahl automatisierter Systeme.',
+                tiers: [
+                    { name: 'Bronze', value: 3, reward: { sp: 100000 }, unlocked: false, desc: '3 verschiedene Typen.' },
+                    { name: 'Silber', value: 4, reward: { sp: 400000, uv: 30 }, unlocked: false, desc: '4 verschiedene Typen.' },
+                    { name: 'Gold', value: 5, reward: { sp: 1000000, uv: 100, pdc: 0.02 }, unlocked: false, desc: '5 verschiedene Typen.' }
+                ],
+                checkType: 'distinctGeneratorTypes'
+            },
+            gutscheinTycoon: {
+                name: 'Gutschein-Tycoon',
+                description: 'Horte Upgrade-Voucher (UV).',
+                tiers: [
+                    { name: 'Bronze', value: 100, reward: { sp: 150000 }, unlocked: false, desc: '100 UV.' },
+                    { name: 'Silber', value: 500, reward: { sp: 750000, uv: 50 }, unlocked: false, desc: '500 UV.' },
+                    { name: 'Gold', value: 1000, reward: { sp: 2000000, uv: 100, pdc: 0.02 }, unlocked: false, desc: '1.000 UV.' }
+                ],
+                checkType: 'currency', currencyType: 'uv'
+            },
+            // Weitere Errungenschaften hier einfügen (Jahrhundert-Klicker, Bandbreiten-Baron etc. nach gleichem Muster)
+            // Beispiel für Erste Systemüberholung (wenn Prestige implementiert ist)
+            // ersteSystemueberholung: {
+            //     name: 'Erste Systemüberholung', description: 'Führe dein erstes Prestige durch.',
+            //     tiers: [ { name: 'Gold', value: 1, reward: { sp: 1000000, uv: 50, pdc: 0.05 }, unlocked: false, desc: '1. Prestige.' } ],
+            //     checkType: 'stat', statProperty: 'prestigesDone'
+            // },
+        }
     };
 
     // --- Game Logic Functions ---
@@ -61,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             totalBonus += upgrade.level * upgrade.baseSpPerClickBonus;
         });
         // Add prestige bonuses later if any
-        gameState.spPerClick = 1 + totalBonus; // Base 1 SP per click
+        gameState.spPerClick = (1 + totalBonus) * (1 + gameState.pdc); // PDC Bonus anwenden
     }
 
     function calculateTotalSps() {
@@ -70,7 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
             total += gen.count * gen.baseSps;
         });
         // Add prestige bonuses later
-        gameState.totalSps = total;
+        // PDC Bonus wird im gameLoop direkt auf die generierten SPs angewendet, nicht auf totalSps selbst
+        gameState.totalSps = total; 
     }
 
     function getCost(item) {
@@ -87,7 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function clickTicket() {
         gameState.sp += gameState.spPerClick;
+        gameState.stats.totalClicksMade++;
         updateUI();
+        checkAchievements();
     }
 
     function buyClickUpgrade(index) {
@@ -99,6 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
             calculateSpPerClick();
             renderPerClickUpgrades();
             updateUI();
+            checkAchievements();
         } else {
             alert("Nicht genug SP!"); // Sollte sein: alert("Nicht genug SP!");
         }
@@ -114,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
             calculateTotalSps();
             renderAutomatedGenerators();
             updateUI();
+            checkAchievements();
         } else {
             alert("Nicht genug Ressourcen (SP oder UV)!"); // Sollte sein: alert("Nicht genug Ressourcen (SP oder UV)!");
         }
@@ -133,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(`${project.name} erfolgreich implementiert!`);
             // Hier könnte man noch einen spezifischen Effekt der Firewall auslösen, falls gewünscht.
             updateUI(); // UI aktualisieren, um den Button-Status zu ändern
+            checkAchievements();
         } else {
             alert("Nicht genug Ressourcen (SP oder UV) für das Firewall-Projekt!");
         }
@@ -165,6 +225,101 @@ document.addEventListener('DOMContentLoaded', () => {
         return awardedOfflineEarnings;
     }
 
+    // --- Achievements Logic ---
+    function checkAchievements() {
+        let newAchievementUnlocked = false;
+        for (const achId in gameState.achievements) {
+            const ach = gameState.achievements[achId];
+            let currentValue;
+
+            switch (ach.checkType) {
+                case 'stat':
+                    currentValue = gameState.stats[ach.statProperty] || 0;
+                    break;
+                case 'generatorCount':
+                    const gen = gameState.generators.find(g => g.id === ach.generatorId);
+                    currentValue = gen ? gen.count : 0;
+                    break;
+                case 'distinctGeneratorTypes':
+                    currentValue = gameState.generators.filter(g => g.count > 0).length;
+                    break;
+                case 'currency':
+                    currentValue = gameState[ach.currencyType] || 0;
+                    break;
+                case 'gameValue': // For spPerClick, totalSps
+                    currentValue = gameState[ach.valueProperty] || 0;
+                    break;
+                // case 'specificGeneratorSet': // Für "Schulgeist" / "Tech-Vielfalt"
+                //     currentValue = ach.generatorIds.filter(id => {
+                //         const specificGen = gameState.generators.find(g => g.id === id);
+                //         return specificGen && specificGen.count > 0;
+                //     }).length;
+                //     break;
+                default:
+                    currentValue = 0;
+            }
+
+            for (const tier of ach.tiers) {
+                if (!tier.unlocked && currentValue >= tier.value) {
+                    tier.unlocked = true;
+                    newAchievementUnlocked = true;
+                    // Apply reward
+                    if (tier.reward.sp) gameState.sp += tier.reward.sp;
+                    if (tier.reward.uv) gameState.uv += tier.reward.uv;
+                    if (tier.reward.pdc) {
+                        gameState.pdc += tier.reward.pdc;
+                        calculateSpPerClick(); // PDC beeinflusst SP/Klick
+                        // calculateTotalSps(); // PDC beeinflusst SP/Sek (im Loop)
+                    }
+                    showAchievementNotification(ach.name, tier.name, tier.reward);
+                }
+            }
+        }
+        if (newAchievementUnlocked) {
+            renderAchievements(); // Update achievement UI if something changed
+            updateUI(); // Update main currency displays
+        }
+    }
+
+    function showAchievementNotification(achName, tierName, reward) {
+        const notificationElement = document.getElementById('achievement-notification');
+        const nameElement = document.getElementById('achievement-toast-name');
+        const tierElement = document.getElementById('achievement-toast-tier');
+        const rewardElement = document.getElementById('achievement-toast-reward-text');
+
+        if (!notificationElement || !nameElement || !tierElement || !rewardElement) return;
+
+        nameElement.textContent = achName;
+        tierElement.textContent = `Stufe: ${tierName}`;
+        
+        let rewardString = "Belohnung: ";
+        const rewards = [];
+        if (reward.sp) rewards.push(`${formatNumber(reward.sp)} SP`);
+        if (reward.uv) rewards.push(`${formatNumber(reward.uv)} UV`);
+        if (reward.pdc) rewards.push(`${(reward.pdc * 100).toFixed(1)}% permanenter Bonus`); // PDC als Bonus
+        rewardString += rewards.join(', ');
+        rewardElement.textContent = rewardString;
+
+        notificationElement.classList.add('show');
+
+        // Hide after a few seconds
+        setTimeout(() => {
+            notificationElement.classList.remove('show');
+        }, 5000); // 5 Sekunden anzeigen
+    }
+
+    function getAchievementSaveString() {
+        const unlockedAchievements = [];
+        for (const achId in gameState.achievements) {
+            const ach = gameState.achievements[achId];
+            const highestUnlockedTierIndex = ach.tiers.reduce((maxIndex, tier, currentIndex) => 
+                (tier.unlocked ? currentIndex : maxIndex), -1);
+            if (highestUnlockedTierIndex > -1) {
+                unlockedAchievements.push(`${achId}:${highestUnlockedTierIndex}`);
+            }
+        }
+        return unlockedAchievements.join(';');
+    }
     // --- Rendering Functions ---
 
     function formatNumber(num) {
@@ -179,7 +334,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateUI() {
         if (spDisplay) spDisplay.textContent = formatNumber(gameState.sp);
         if (uvDisplay) uvDisplay.textContent = formatNumber(gameState.uv);
-        if (pdcDisplay) pdcDisplay.textContent = formatNumber(gameState.pdc);
+        if (pdcDisplay) {
+             // PDC als Prozentsatz anzeigen
+            pdcDisplay.textContent = (gameState.pdc * 100).toFixed(2) + '%';
+        } else {
+            // Fallback, falls pdcDisplay nicht existiert, um Fehler zu vermeiden
+        }
         if (spPerClickDisplay) spPerClickDisplay.textContent = formatNumber(gameState.spPerClick);
         if (totalSpsDisplay) totalSpsDisplay.textContent = formatNumber(gameState.totalSps);
 
@@ -262,12 +422,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function renderAchievements() {
+        if (!achievementsListContainer) return;
+        achievementsListContainer.innerHTML = '';
+
+        for (const achId in gameState.achievements) {
+            const ach = gameState.achievements[achId];
+            const achDiv = document.createElement('div');
+            achDiv.className = 'achievement-item';
+
+            let achHTML = `<h4>${ach.name}</h4><p>${ach.description}</p>`;
+
+            ach.tiers.forEach(tier => {
+                const tierDiv = document.createElement('div');
+                tierDiv.className = `achievement-tier ${tier.unlocked ? 'unlocked' : 'locked'}`;
+                
+                let rewardString = "";
+                if (tier.reward.sp) rewardString += `${formatNumber(tier.reward.sp)} SP`;
+                if (tier.reward.uv) rewardString += (rewardString ? ", " : "") + `${formatNumber(tier.reward.uv)} UV`;
+                if (tier.reward.pdc) rewardString += (rewardString ? ", " : "") + `${(tier.reward.pdc * 100).toFixed(1)}% Bonus`;
+
+                tierDiv.innerHTML = `
+                    <strong>${tier.name}</strong>: ${tier.desc}
+                    ${tier.unlocked ? `<span class="tier-reward">(Belohnung erhalten: ${rewardString})</span>` : `<span class="tier-reward">(Belohnung: ${rewardString})</span>`}
+                `;
+                achHTML += tierDiv.outerHTML;
+            });
+            achDiv.innerHTML = achHTML;
+            achievementsListContainer.appendChild(achDiv);
+        }
+    }
+
     // --- Game Loop ---
     function gameLoop() {
-        const spFromGenerators = gameState.totalSps;
-        gameState.sp += spFromGenerators / 10; // Game updates 10 times per second
+        // SP-Generierung unter Berücksichtigung des PDC-Bonus
+        const effectiveSps = gameState.totalSps * (1 + gameState.pdc);
+        gameState.sp += effectiveSps / 10; // Spiel aktualisiert 10 Mal pro Sekunde
 
         // AV Club Gurus UV generation
+        // Diese Logik sollte idealerweise auch in checkAchievements oder einer ähnlichen
+        // Funktion für passive Effekte ausgelagert werden, wenn es komplexer wird.
+        // Für den Moment belassen wir es hier für die UV-Generierung.
         const avClubGurus = gameState.generators.find(g => g.id === 'avClubGurus');
         if (avClubGurus && avClubGurus.count > 0) {
             for (let i = 0; i < avClubGurus.count; i++) { // Chance per guru unit
@@ -278,6 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateUI();
+        checkAchievements(); // Regelmäßig prüfen, besonders für zeitbasierte oder Währungs-Achievements
     }
 
     // --- Persistence ---
@@ -293,20 +489,23 @@ document.addEventListener('DOMContentLoaded', () => {
     function exportGameStateAsSeed() {
         const clickUpgradeData = gameState.clickUpgrades.map(u => `${u.id}:${u.level}`).join(',');
         const generatorData = gameState.generators.map(g => `${g.id}:${g.count}`).join(',');
+        const achievementData = getAchievementSaveString();
 
-        const seedVersion = "1"; // Versioning the seed helps with future compatibility
+        const seedVersion = "1.1"; // Version erhöht wegen Achievement-Daten
 
         const seedPayload = [
             seedVersion,
             gameState.sp,
             gameState.uv,
-            gameState.pdc,
+            gameState.pdc.toFixed(4), // PDC als Zahl mit Präzision speichern
             clickUpgradeData, // e.g., "ergonomicMousepad:2,advancedGoogling:1"
             generatorData,    // e.g., "helpdeskIntern:5,patchManagement:0"
             gameState.prestigesDone,
             // Firewall-Status
             gameState.firewallProject.implemented ? "1" : "0",
-            Date.now() // Aktueller Zeitstempel für Offline-Berechnung beim Import dieses Seeds
+            Date.now(), // Aktueller Zeitstempel für Offline-Berechnung beim Import dieses Seeds
+            gameState.stats.totalClicksMade, // Stats speichern
+            achievementData // Errungenschaftsdaten
         ].join('|'); // Use a delimiter that's unlikely to be in IDs or names
 
         try {
@@ -334,18 +533,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const parts = seedPayload.split('|');
 
             const seedVersion = parts[0]; // Version des Seeds
-            if (seedVersion !== "1") { // Check against current supported versions
-                alert(`Ungültige oder nicht unterstützte Seed-Version. Dieser Seed ist Version ${seedVersion}, das Spiel unterstützt Version 1.`);
+            if (seedVersion !== "1" && seedVersion !== "1.1") { // Unterstützt alte und neue Version
+                alert(`Ungültige oder nicht unterstützte Seed-Version. Dieser Seed ist Version ${seedVersion}, das Spiel unterstützt Version 1 oder 1.1.`);
                 return;
             }
 
             // Start with a fresh default state to ensure all properties exist
             const loadedGs = getInitialGameState();
-            
+
             loadedGs.sp = parseInt(parts[1], 10);
             loadedGs.uv = parseInt(parts[2], 10);
-            loadedGs.pdc = parseInt(parts[3], 10);
-            
+            loadedGs.pdc = parseFloat(parts[3]); // PDC als float laden
+
             const clickUpgradeDataStr = parts[4];
             const generatorDataStr = parts[5];
             
@@ -364,6 +563,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isNaN(ts)) loadedTimestampFromSeed = ts;
             }
 
+            if (parts.length > 9 && parts[9]) { // Stats laden (totalClicksMade)
+                loadedGs.stats.totalClicksMade = parseInt(parts[9], 10) || 0;
+            }
+
+            if (parts.length > 10 && parts[10]) { // Errungenschaften laden
+                parts[10].split(';').forEach(achState => {
+                    if (!achState) return;
+                    const [achId, highestTierIndexStr] = achState.split(':');
+                    const highestTierIndex = parseInt(highestTierIndexStr, 10);
+                    if (loadedGs.achievements[achId] && !isNaN(highestTierIndex)) {
+                        for (let i = 0; i <= highestTierIndex; i++) {
+                            if (loadedGs.achievements[achId].tiers[i]) {
+                                loadedGs.achievements[achId].tiers[i].unlocked = true;
+                            }
+                        }
+                    }
+                });
+            }
             if (isNaN(loadedGs.sp) || isNaN(loadedGs.uv) || isNaN(loadedGs.pdc) || isNaN(loadedGs.prestigesDone)) {
                 throw new Error("Ungültige numerische Daten im Seed (Währungen oder Prestige-Zähler).");
             }
@@ -405,6 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 gameState.sp += offlineEarnings; // SP direkt zum gameState hinzufügen
                 alert(`Willkommen zurück!\nDu hast ${formatNumber(offlineEarnings)} SP verdient, während du offline warst (30% deiner potenziellen Einnahmen aus diesem Seed-Import).`);
             }
+            checkAchievements(); // Nach dem Laden prüfen, ob neue Achievements durch geladenen State erreicht wurden
             // finalizeStateLoad(); // Wird jetzt in init() aufgerufen, nachdem importGameStateFromSeed abgeschlossen ist.
             alert("Spiel von Seed geladen!");
         } catch (e) {
@@ -417,8 +635,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Deep copy to avoid modifying the original template on reset
         return JSON.parse(JSON.stringify({
             sp: 0,
-            uv: 0,
-            pdc: 0,
+            uv: 0, // Upgrade Vouchers
+            pdc: 0, // Prestige Derived Credits (Bonusfaktor)
             spPerClick: 1,
             totalSps: 0,
             clickUpgrades: [
@@ -443,7 +661,57 @@ document.addEventListener('DOMContentLoaded', () => {
             },
             prestigesDone: 0,
             prestigeUpgrades: [],
-            lastSavedTimestamp: null // Oder Date.now() für ein brandneues Spiel, aber null ist besser für die Logik
+            lastSavedTimestamp: null,
+            stats: {
+                totalClicksMade: 0,
+            },
+            achievements: { // Standard-Errungenschaftsstatus (alles gesperrt)
+                unermuedlicherKlicker: {
+                    name: 'Der Unermüdliche',
+                    description: 'Klicke wiederholt auf den "Problem lösen"-Button.',
+                    tiers: [
+                        { name: 'Bronze', value: 1000, reward: { sp: 10000 }, unlocked: false, desc: '1.000 Klicks.' },
+                        { name: 'Silber', value: 5000, reward: { sp: 50000 }, unlocked: false, desc: '5.000 Klicks.' },
+                        { name: 'Gold', value: 10000, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: '10.000 Klicks.' }
+                    ],
+                    checkType: 'stat', statProperty: 'totalClicksMade'
+                },
+                praktikantenDompteur: {
+                    name: 'Praktikanten-Dompteur',
+                    description: 'Stelle eine Armee von Helpdesk-Praktikanten ein.',
+                    tiers: [
+                        { name: 'Bronze', value: 10, reward: { sp: 25000 }, unlocked: false, desc: '10 Praktikanten.' },
+                        { name: 'Silber', value: 25, reward: { sp: 100000, uv: 20 }, unlocked: false, desc: '25 Praktikanten.' },
+                        { name: 'Gold', value: 50, reward: { sp: 500000, uv: 50, pdc: 0.01 }, unlocked: false, desc: '50 Praktikanten.' }
+                    ],
+                    checkType: 'generatorCount', generatorId: 'helpdeskIntern'
+                },
+                automatisierungsAficionado: {
+                    name: 'Automatisierungs-Aficionado',
+                    description: 'Nutze eine Vielzahl automatisierter Systeme.',
+                    tiers: [
+                        { name: 'Bronze', value: 3, reward: { sp: 100000 }, unlocked: false, desc: '3 verschiedene Typen.' },
+                        { name: 'Silber', value: 4, reward: { sp: 400000, uv: 30 }, unlocked: false, desc: '4 verschiedene Typen.' },
+                        { name: 'Gold', value: 5, reward: { sp: 1000000, uv: 100, pdc: 0.02 }, unlocked: false, desc: '5 verschiedene Typen.' }
+                    ],
+                    checkType: 'distinctGeneratorTypes'
+                },
+                gutscheinTycoon: {
+                    name: 'Gutschein-Tycoon',
+                    description: 'Horte Upgrade-Voucher (UV).',
+                    tiers: [
+                        { name: 'Bronze', value: 100, reward: { sp: 150000 }, unlocked: false, desc: '100 UV.' },
+                        { name: 'Silber', value: 500, reward: { sp: 750000, uv: 50 }, unlocked: false, desc: '500 UV.' },
+                        { name: 'Gold', value: 1000, reward: { sp: 2000000, uv: 100, pdc: 0.02 }, unlocked: false, desc: '1.000 UV.' }
+                    ],
+                    checkType: 'currency', currencyType: 'uv'
+                },
+                // ersteSystemueberholung: {
+                //     name: 'Erste Systemüberholung', description: 'Führe dein erstes Prestige durch.',
+                //     tiers: [ { name: 'Gold', value: 1, reward: { sp: 1000000, uv: 50, pdc: 0.05 }, unlocked: false, desc: '1. Prestige.' } ],
+                //     checkType: 'stat', statProperty: 'prestigesDone'
+                // },
+            }
         }));
     }
 
@@ -467,6 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderAll() {
         renderPerClickUpgrades();
         renderAutomatedGenerators();
+        renderAchievements();
         // renderSpecialUnlocks(); // To be implemented
         // renderPrestigeUpgrades(); // To be implemented
     }
