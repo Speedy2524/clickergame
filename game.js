@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const blackjackDealButton = document.getElementById('blackjack-deal-button');
     const blackjackHitButton = document.getElementById('blackjack-hit-button');
     const blackjackStandButton = document.getElementById('blackjack-stand-button');
+    const blackjackDoubleDownButton = document.getElementById('blackjack-double-button');
     const blackjackMessage = document.getElementById('blackjack-message');
 
     // --- Game State ---
@@ -419,6 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
             gameState.blackjack.message = "Blackjack! Du gewinnst!";
             await delay(1000); // Kurze Pause, um den Blackjack zu zeigen
             endBlackjackRound(true); 
+            // Kein Double Down möglich bei Blackjack
         } else {
             renderBlackjackUI(); // Sicherstellen, dass die UI nach dem Austeilen aktuell ist
         }
@@ -427,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function blackjackPlayerHit() {
         if (!gameState.blackjack.gameInProgress) return;
+        if (blackjackDoubleDownButton) blackjackDoubleDownButton.style.display = 'none'; // Double Down nicht mehr möglich nach Hit
         await dealCardAnimated(gameState.blackjack.playerHand, true);
         gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
         renderBlackjackUI(); // UI nach dem Ziehen aktualisieren
@@ -443,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function blackjackPlayerStand() {
         if (!gameState.blackjack.gameInProgress) return;
+        if (blackjackDoubleDownButton) blackjackDoubleDownButton.style.display = 'none'; // Double Down nicht mehr möglich nach Stand
         gameState.blackjack.dealerRevealed = true;
         renderBlackjackUI(); // Zeige die verdeckte Karte des Dealers
         await delay(700); // Kurze Pause, bevor der Dealer zieht
@@ -473,6 +477,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         await delay(1000); // Pause, um das Ergebnis anzuzeigen
         renderBlackjackUI();
+    }
+
+    async function blackjackPlayerDoubleDown() {
+        if (!gameState.blackjack.gameInProgress || gameState.blackjack.playerHand.length !== 2) return;
+
+        const additionalBet = gameState.blackjack.betAmount;
+        if (gameState.sp < additionalBet) {
+            gameState.blackjack.message = "Nicht genug SP zum Verdoppeln!";
+            renderBlackjackUI();
+            return;
+        }
+
+        gameState.sp -= additionalBet;
+        gameState.blackjack.betAmount += additionalBet; // Einsatz im Spiel verdoppeln
+        updateUI(); // SP-Anzeige aktualisieren
+
+        gameState.blackjack.message = "Verdoppelt! Eine letzte Karte...";
+        if (blackjackHitButton) blackjackHitButton.style.display = 'none';
+        if (blackjackStandButton) blackjackStandButton.style.display = 'none';
+        if (blackjackDoubleDownButton) blackjackDoubleDownButton.style.display = 'none';
+        renderBlackjackUI(); // Nachricht anzeigen
+
+        await dealCardAnimated(gameState.blackjack.playerHand, true); // Eine Karte ziehen
+        gameState.blackjack.playerScore = calculateHandValue(gameState.blackjack.playerHand);
+        renderBlackjackUI(); // UI nach dem Ziehen aktualisieren
+
+        if (gameState.blackjack.playerScore > 21) {
+            gameState.blackjack.message = "Bust nach Double Down! Du hast verloren.";
+            await delay(1000);
+            endBlackjackRound(false);
+        } else {
+            // Nach Double Down ist der Spielerzug automatisch beendet (Stand)
+            await blackjackPlayerStand();
+        }
     }
 
     function endBlackjackRound(playerWins) {
@@ -658,6 +696,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (blackjackDealButton) blackjackDealButton.style.display = gameState.blackjack.gameInProgress ? 'none' : 'inline-block';
         if (blackjackHitButton) blackjackHitButton.style.display = gameState.blackjack.gameInProgress ? 'inline-block' : 'none';
         if (blackjackStandButton) blackjackStandButton.style.display = gameState.blackjack.gameInProgress ? 'inline-block' : 'none';
+        if (blackjackDoubleDownButton) {
+            const canDouble = gameState.blackjack.gameInProgress &&
+                              gameState.blackjack.playerHand.length === 2 &&
+                              gameState.sp >= gameState.blackjack.betAmount; // Genug SP, um den *aktuellen* Einsatz nochmal zu setzen
+            blackjackDoubleDownButton.style.display = canDouble ? 'inline-block' : 'none';
+            blackjackDoubleDownButton.disabled = !canDouble; // Sicherstellen, dass er auch klickbar ist
+        }
         if (blackjackBetAmountInput) blackjackBetAmountInput.disabled = gameState.blackjack.gameInProgress;
 
         if (blackjackPlayerScore) blackjackPlayerScore.textContent = gameState.blackjack.playerScore;
@@ -1130,6 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (blackjackDealButton) blackjackDealButton.addEventListener('click', startBlackjackGame);
         if (blackjackHitButton) blackjackHitButton.addEventListener('click', blackjackPlayerHit);
         if (blackjackStandButton) blackjackStandButton.addEventListener('click', blackjackPlayerStand);
+        if (blackjackDoubleDownButton) blackjackDoubleDownButton.addEventListener('click', blackjackPlayerDoubleDown);
 
 
         // loadGame(); // Versucht, beim Start aus localStorage zu laden - Deaktiviert, um stattdessen nach Seed zu fragen

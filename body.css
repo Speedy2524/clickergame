@@ -427,6 +427,16 @@ footer button:hover {
     background-color: #00796b; /* Darker Teal */
 }
 
+#blackjack-double-button {
+    background-color: #ffc107; /* Amber - für eine "besondere Aktion" Farbe */
+    /* Erbt andere Stile wie color, padding, etc. von #blackjack-controls button */
+}
+
+#blackjack-double-button:hover {
+    background-color: #ffa000; /* Dunkleres Amber */
+}
+
+
 #blackjack-controls input[type="number"] {
     padding: 6px;
     margin-right: 10px;
