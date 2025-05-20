@@ -298,6 +298,11 @@ function renderBlackjackCasinoUI() {
     }
 }
 
+export function updateCasinoGamesUI() {
+    renderLotteryCasinoUI();
+    renderBlackjackCasinoUI();
+}
+
 export function initCasino() {
     // Get DOM elements here, ensuring DOM is ready
     playLotteryButton = document.getElementById('play-lottery-button');
@@ -321,7 +326,6 @@ export function initCasino() {
     if (blackjackStandButtonEl) blackjackStandButtonEl.addEventListener('click', blackjackPlayerStand);
     if (blackjackDoubleDownButtonEl) blackjackDoubleDownButtonEl.addEventListener('click', blackjackPlayerDoubleDown);
 
-    renderLotteryCasinoUI(); // Initial render for lottery
-    renderBlackjackCasinoUI(); // Initial render for blackjack
+    updateCasinoGamesUI(); // Call the new combined UI update for initial render
     console.log("Casino Modul initialisiert!");
 }
