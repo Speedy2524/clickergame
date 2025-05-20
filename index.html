@@ -70,12 +70,14 @@
                     <!-- Errungenschaften werden hier von JavaScript gerendert -->
                 </div>
             </section>
+
         </main>
 
         <footer>
             <button id="export-seed-button">Als Seed Exportieren</button>
             <button id="import-seed-button">Von Seed Importieren</button>
             <button id="reset-button">Spiel Zurücksetzen (Hard)</button>
+            <button id="open-casino-button" title="Casino öffnen">🎰 Casino</button>
         </footer>
     </div>
 
@@ -84,6 +86,22 @@
         <p id="achievement-toast-name" style="font-weight: bold;"></p>
         <p id="achievement-toast-tier"></p>
         <p id="achievement-toast-reward-text" style="font-style: italic;"></p>
+    </div>
+
+    <div id="casino-modal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal-button" title="Schließen">&times;</button>
+            <h2>🎰 IT-Casino</h2>
+            <div id="casino-games-container">
+                <section id="lottery-game-section"> <!-- Ehemals gambling-section, jetzt spezifischer -->
+                    <h3>IT-Lotterie</h3>
+                    <p>Versuche dein Glück! Jedes Los kostet <strong id="lottery-cost-display">10,000</strong> SP.</p>
+                    <button id="play-lottery-button">Los kaufen!</button>
+                    <p>Letztes Ergebnis: <span id="lottery-result-display">Noch nicht gespielt.</span></p>
+                </section>
+                <!-- Hier könnten zukünftige Casino-Spiele als weitere <section> Elemente hinzugefügt werden -->
+            </div>
+        </div>
     </div>
     <script src="game.js"></script>
 </body>

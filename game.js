@@ -18,6 +18,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetButton = document.getElementById('reset-button');
     const exportSeedButton = document.getElementById('export-seed-button'); // Add this button to your HTML
     const importSeedButton = document.getElementById('import-seed-button'); // Add this button to your HTML
+    // Gambling elements
+    const playLotteryButton = document.getElementById('play-lottery-button');
+    const lotteryCostDisplay = document.getElementById('lottery-cost-display');
+    const lotteryResultDisplay = document.getElementById('lottery-result-display');
+    // Casino Modal elements
+    const casinoModal = document.getElementById('casino-modal');
+    const openCasinoButton = document.getElementById('open-casino-button');
+    const closeModalButton = document.querySelector('#casino-modal .close-modal-button');
 
     // --- Game State ---
     let gameState = {
@@ -52,9 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
         prestigesDone: 0,
         prestigeUpgrades: [], // e.g., { id: 'veteranDiscount', level: 0, effect: 0.01 }
         lastSavedTimestamp: null,
+        itLotteryCostSP: 10000, // Kosten für ein Lotterielos
+        itLotteryLastResult: "Noch nicht gespielt.",
         stats: { // Für Errungenschafts-Tracking
             totalClicksMade: 0,
-            // Weitere Stats können hier hinzugefügt werden
+            lotteryPlays: 0,
+            lotteryJackpots: 0,
         },
         achievements: {
             unermuedlicherKlicker: {
@@ -104,6 +115,24 @@ document.addEventListener('DOMContentLoaded', () => {
             //     tiers: [ { name: 'Gold', value: 1, reward: { sp: 1000000, uv: 50, pdc: 0.05 }, unlocked: false, desc: '1. Prestige.' } ],
             //     checkType: 'stat', statProperty: 'prestigesDone'
             // },
+            risikofreudig: {
+                name: 'Risikofreudig',
+                description: 'Versuche dein Glück bei der IT-Lotterie.',
+                tiers: [
+                    { name: 'Bronze', value: 10, reward: { sp: 5000 }, unlocked: false, desc: '10 Mal gespielt.' },
+                    { name: 'Silber', value: 50, reward: { sp: 25000, uv: 5 }, unlocked: false, desc: '50 Mal gespielt.' },
+                    { name: 'Gold', value: 100, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: '100 Mal gespielt.' }
+                ],
+                checkType: 'stat', statProperty: 'lotteryPlays'
+            },
+            glueckspilz: {
+                name: 'Glückspilz',
+                description: 'Knacke den Jackpot in der IT-Lotterie.',
+                tiers: [
+                    { name: 'Bronze', value: 1, reward: { sp: 200000, uv: 20, pdc: 0.005 }, unlocked: false, desc: '1 Jackpot gewonnen.' },
+                ],
+                checkType: 'stat', statProperty: 'lotteryJackpots'
+            }
         }
     };
 
@@ -225,6 +254,51 @@ document.addEventListener('DOMContentLoaded', () => {
         return awardedOfflineEarnings;
     }
 
+    // --- Gambling Logic ---
+    function playITLottery() {
+        if (gameState.sp < gameState.itLotteryCostSP) {
+            gameState.itLotteryLastResult = "Nicht genug SP für ein Los!";
+            updateUI();
+            return;
+        }
+
+        gameState.sp -= gameState.itLotteryCostSP;
+        gameState.stats.lotteryPlays++;
+
+        const randomNumber = Math.random() * 100; // Zahl zwischen 0 und 99.99...
+        let resultMessage = "";
+        let spWon = 0;
+        let uvWon = 0;
+
+        if (randomNumber < 0.1) { // 0.1% Jackpot
+            spWon = gameState.itLotteryCostSP * 10;
+            uvWon = 5;
+            resultMessage = `JACKPOT! Du gewinnst ${formatNumber(spWon)} SP und ${uvWon} UV!`;
+            gameState.stats.lotteryJackpots++;
+        } else if (randomNumber < 0.5) { // 0.4% UV Win (0.1 + 0.4 = 0.5)
+            uvWon = 1;
+            resultMessage = `Glückstreffer! Du gewinnst ${uvWon} UV!`;
+        } else if (randomNumber < 3) { // 2.5% Large Win (0.5 + 2.5 = 3)
+            spWon = gameState.itLotteryCostSP * 5;
+            resultMessage = `Großer Gewinn! Du erhältst ${formatNumber(spWon)} SP!`;
+        } else if (randomNumber < 10) { // 7% Medium Win (3 + 7 = 10)
+            spWon = gameState.itLotteryCostSP * 2;
+            resultMessage = `Schöner Gewinn! Du erhältst ${formatNumber(spWon)} SP!`;
+        } else if (randomNumber < 25) { // 15% Break Even (10 + 15 = 25)
+            spWon = gameState.itLotteryCostSP;
+            resultMessage = `Einsatz zurück! Du erhältst ${formatNumber(spWon)} SP.`;
+        } else if (randomNumber < 50) { // 25% Small Win (25 + 25 = 50)
+            spWon = gameState.itLotteryCostSP * 0.5;
+            resultMessage = `Kleiner Trostpreis! Du erhältst ${formatNumber(spWon)} SP.`;
+        } else { // 50% Lose
+            resultMessage = "Leider nichts gewonnen. Versuche es erneut!";
+        }
+        gameState.sp += spWon;
+        gameState.uv += uvWon;
+        gameState.itLotteryLastResult = resultMessage;
+        updateUI();
+        checkAchievements();
+    }
     // --- Achievements Logic ---
     function checkAchievements() {
         let newAchievementUnlocked = false;
@@ -376,6 +450,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 implementFirewallButton.disabled = gameState.sp < project.costSP || gameState.uv < project.costUV;
             }
         }
+
+        // Gambling UI
+        if (lotteryCostDisplay) {
+            lotteryCostDisplay.textContent = formatNumber(gameState.itLotteryCostSP);
+        }
+        if (lotteryResultDisplay) {
+            lotteryResultDisplay.textContent = gameState.itLotteryLastResult;
+        }
+        if (playLotteryButton) {
+            playLotteryButton.disabled = gameState.sp < gameState.itLotteryCostSP;
+        }
+
+        // Casino Modal Button (immer aktivierbar, solange das Element existiert)
+        // if (openCasinoButton) {
+        //     openCasinoButton.disabled = false; // Normalerweise nicht nötig, es sei denn, es gäbe Bedingungen
+        // }
     }
 
     function renderPerClickUpgrades() {
@@ -491,7 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const generatorData = gameState.generators.map(g => `${g.id}:${g.count}`).join(',');
         const achievementData = getAchievementSaveString();
 
-        const seedVersion = "1.1"; // Version erhöht wegen Achievement-Daten
+        const seedVersion = "1.2"; // Version erhöht wegen Gambling-Stats
 
         const seedPayload = [
             seedVersion,
@@ -504,7 +594,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Firewall-Status
             gameState.firewallProject.implemented ? "1" : "0",
             Date.now(), // Aktueller Zeitstempel für Offline-Berechnung beim Import dieses Seeds
-            gameState.stats.totalClicksMade, // Stats speichern
+            `${gameState.stats.totalClicksMade},${gameState.stats.lotteryPlays},${gameState.stats.lotteryJackpots}`, // Stats speichern
             achievementData // Errungenschaftsdaten
         ].join('|'); // Use a delimiter that's unlikely to be in IDs or names
 
@@ -533,8 +623,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const parts = seedPayload.split('|');
 
             const seedVersion = parts[0]; // Version des Seeds
-            if (seedVersion !== "1" && seedVersion !== "1.1") { // Unterstützt alte und neue Version
-                alert(`Ungültige oder nicht unterstützte Seed-Version. Dieser Seed ist Version ${seedVersion}, das Spiel unterstützt Version 1 oder 1.1.`);
+            if (seedVersion !== "1" && seedVersion !== "1.1" && seedVersion !== "1.2") { // Unterstützt alte und neue Versionen
+                alert(`Ungültige oder nicht unterstützte Seed-Version. Dieser Seed ist Version ${seedVersion}, das Spiel unterstützt Version 1, 1.1 oder 1.2.`);
                 return;
             }
 
@@ -563,8 +653,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isNaN(ts)) loadedTimestampFromSeed = ts;
             }
 
-            if (parts.length > 9 && parts[9]) { // Stats laden (totalClicksMade)
-                loadedGs.stats.totalClicksMade = parseInt(parts[9], 10) || 0;
+            if (parts.length > 9 && parts[9]) { // Stats laden
+                const statParts = parts[9].split(',');
+                loadedGs.stats.totalClicksMade = parseInt(statParts[0], 10) || 0;
+                if (statParts.length > 1) {
+                    loadedGs.stats.lotteryPlays = parseInt(statParts[1], 10) || 0;
+                }
+                if (statParts.length > 2) {
+                    loadedGs.stats.lotteryJackpots = parseInt(statParts[2], 10) || 0;
+                }
+
             }
 
             if (parts.length > 10 && parts[10]) { // Errungenschaften laden
@@ -664,7 +762,11 @@ document.addEventListener('DOMContentLoaded', () => {
             lastSavedTimestamp: null,
             stats: {
                 totalClicksMade: 0,
+                lotteryPlays: 0,
+                lotteryJackpots: 0,
             },
+            itLotteryCostSP: 10000,
+            itLotteryLastResult: "Noch nicht gespielt.",
             achievements: { // Standard-Errungenschaftsstatus (alles gesperrt)
                 unermuedlicherKlicker: {
                     name: 'Der Unermüdliche',
@@ -711,6 +813,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 //     tiers: [ { name: 'Gold', value: 1, reward: { sp: 1000000, uv: 50, pdc: 0.05 }, unlocked: false, desc: '1. Prestige.' } ],
                 //     checkType: 'stat', statProperty: 'prestigesDone'
                 // },
+                risikofreudig: {
+                    name: 'Risikofreudig',
+                    description: 'Versuche dein Glück bei der IT-Lotterie.',
+                    tiers: [
+                        { name: 'Bronze', value: 10, reward: { sp: 5000 }, unlocked: false, desc: '10 Mal gespielt.' },
+                        { name: 'Silber', value: 50, reward: { sp: 25000, uv: 5 }, unlocked: false, desc: '50 Mal gespielt.' },
+                        { name: 'Gold', value: 100, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: '100 Mal gespielt.' }
+                    ],
+                    checkType: 'stat', statProperty: 'lotteryPlays'
+                },
+                glueckspilz: {
+                    name: 'Glückspilz',
+                    description: 'Knacke den Jackpot in der IT-Lotterie.',
+                    tiers: [
+                        { name: 'Bronze', value: 1, reward: { sp: 200000, uv: 20, pdc: 0.005 }, unlocked: false, desc: '1 Jackpot gewonnen.' },
+                    ],
+                    checkType: 'stat', statProperty: 'lotteryJackpots'
+                }
             }
         }));
     }
@@ -749,6 +869,27 @@ document.addEventListener('DOMContentLoaded', () => {
         if (exportSeedButton) exportSeedButton.addEventListener('click', exportGameStateAsSeed);
         if (importSeedButton) importSeedButton.addEventListener('click', () => importGameStateFromSeed()); // Pass no arg to trigger prompt
         if (implementFirewallButton) implementFirewallButton.addEventListener('click', purchaseFirewallProject);
+
+        // Casino Modal Listeners
+        if (openCasinoButton && casinoModal) {
+            openCasinoButton.addEventListener('click', () => {
+                casinoModal.style.display = 'flex'; // 'flex' wegen align-items/justify-content im CSS
+            });
+        }
+        if (closeModalButton && casinoModal) {
+            closeModalButton.addEventListener('click', () => {
+                casinoModal.style.display = 'none';
+            });
+        }
+        // Optional: Schließen des Modals bei Klick außerhalb des Inhalts
+        if (casinoModal) {
+            window.addEventListener('click', (event) => {
+                if (event.target === casinoModal) { // Nur wenn direkt auf das Modal (den Overlay) geklickt wird
+                    casinoModal.style.display = 'none';
+                }
+            });
+        }
+        if (playLotteryButton) playLotteryButton.addEventListener('click', playITLottery);
 
         // loadGame(); // Versucht, beim Start aus localStorage zu laden - Deaktiviert, um stattdessen nach Seed zu fragen
         importGameStateFromSeed(); // Fragt beim Start nach einem Seed. Wenn abgebrochen, startet ein neues Spiel.
