@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digitaler Held des Schulbezirks</title>
+    <link rel="stylesheet" href="body.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Digitaler Held des Schulbezirks</h1>
+            <div class="currencies">
+                <p>Support-Punkte (SP): <span id="sp-display">0</span></p>
+                <p>Upgrade-Gutscheine (UV): <span id="uv-display">0</span></p>
+                <p>Fortbildungs-Credits (PDC): <span id="pdc-display">0</span></p>
+            </div>
+        </header>
+
+        <main>
+            <section id="core-action">
+                <h2>Tickets Bearbeiten</h2>
+                <button id="click-button">
+                    <img src="resolve_ticket_icon.png.jfif" alt="Resolve Ticket Icon" id="click-icon">
+                    <p>Klicken zum Bearbeiten!</p>
+                </button>
+                <p><span id="sp-per-click-display">1</span> SP pro Klick</p>
+            </section>
+
+            <div class="upgrades-container">
+                <section id="per-click-upgrades">
+                    <h2>Mein Schreibtisch (Pro-Klick-Upgrades)</h2>
+                    <div id="per-click-upgrades-list">
+                        <!-- Pro-Klick-Upgrades werden hier per JS eingefügt -->
+                    </div>
+                </section>
+
+                <section id="automated-generators">
+                    <h2>IT-Abteilung (Automatisierte Systeme)</h2>
+                    <p>Gesamt SP/Sek: <span id="total-sps-display">0</span></p>
+                    <div id="automated-generators-list">
+                        <!-- Automatisierte Generatoren werden hier per JS eingefügt -->
+                    </div>
+                </section>
+            </div>
+
+            <div class="advanced-upgrades-container">
+                <section id="special-unlocks">
+                    <h2>Bezirksprojekte (UV-Freischaltungen)</h2>
+                    <div id="special-unlocks-list">
+                        <p><em>Kommt bald!</em></p>
+                        <button id="implement-firewall-button" class="project-button">Implementiere Firewall</button>
+                        <!-- Spezielle Freischaltungen werden hier per JS eingefügt -->
+                    </div>
+                </section>
+
+                <section id="prestige-upgrades">
+                    <h2>Weiterbildung (PDC-Upgrades)</h2>
+                    <div id="prestige-upgrades-list">
+                        <p><em>Kommt bald! Erreiche 1 Billion SP zum Freischalten.</em></p>
+                        <!-- Prestige-Upgrades werden hier per JS eingefügt -->
+                    </div>
+                    <button id="prestige-button" style="display:none;">Systemüberholung (Prestige)</button>
+                </section>
+            </div>
+        </main>
+
+        <footer>
+            <button id="export-seed-button">Als Seed Exportieren</button>
+            <button id="import-seed-button">Von Seed Importieren</button>
+            <button id="reset-button">Spiel Zurücksetzen (Hard)</button>
+            <p>Erfolge: <span id="achievements-display"><em>Kommt bald!</em></span></p>
+        </footer>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
