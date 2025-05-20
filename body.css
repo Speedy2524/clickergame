@@ -29,7 +29,7 @@ header {
     position: sticky;
     /* top: 40px; berechnet sich aus body.padding-top (20px) + container.padding (20px oben) */
     /* Dies stellt sicher, dass der Header an seiner ursprünglichen Position kleben bleibt. */
-    top: 40px; 
+    top: 0; /* Lässt den Header ganz oben am Bildschirmrand kleben */
     background-color: #fff; /* Stellt sicher, dass der Header nicht transparent ist, wenn Inhalt darunter scrollt */
     z-index: 1000; /* Stellt sicher, dass der Header über anderen Elementen liegt */
     box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* Optional: Leichter Schatten für bessere Trennung */
