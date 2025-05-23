@@ -450,3 +450,55 @@ footer button:hover {
     font-style: italic;
     color: #004d40; /* Darkest Teal */
 }
+/* Add or update these styles in your CSS */
+.quantity-selector {
+    margin: 5px 0 8px 0; /* Added some bottom margin */
+    display: flex; /* For better alignment of span and buttons */
+    align-items: center;
+}
+.quantity-selector span {
+    margin-right: 5px;
+}
+.quantity-btn {
+    padding: 4px 8px; /* Slightly adjusted padding */
+    margin: 0 3px;   /* Slightly adjusted margin */
+    cursor: pointer;
+    border: 1px solid #ccc;
+    background-color: #f0f0f0;
+    border-radius: 3px; /* Added slight rounding */
+    font-size: 0.9em; /* Slightly smaller font for quantity buttons */
+}
+.quantity-btn.active {
+    background-color: #4CAF50; /* Green for active */
+    color: white;
+    border-color: #388E3C; /* Darker green border */
+}
+.buy-button { /* Ensure your general buy buttons can be styled like this */
+    padding: 8px 12px;
+    cursor: pointer;
+    border: 1px solid #555;
+    background-color: #ddd;
+    border-radius: 4px;
+    min-width: 200px; /* Give buy buttons a consistent width */
+    text-align: center;
+}
+.buy-button:hover:not(:disabled) {
+    background-color: #ccc;
+}
+.buy-button:disabled {
+    background-color: #e0e0e0;
+    color: #a0a0a0;
+    cursor: not-allowed;
+    border-color: #d0d0d0;
+}
+
+/* Ensure upgrade items have some spacing */
+.upgrade-item, .generator-item {
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #eee;
+}
+.upgrade-item:last-child, .generator-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}

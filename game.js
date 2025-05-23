@@ -175,13 +175,56 @@ function calculateTotalSps() {
     gameState.totalSps = total;
 }
 
+// --- New Helper for Multi-Buy ---
+/**
+ * Calculates the cumulative cost and number of items that can be purchased.
+ * @param {object} item - The upgrade or generator object.
+ * @param {number|string} requestedQuantity - The number of items to try to buy, or 'MAX'.
+ * @param {number} startLevelOrCount - The current level or count of the item.
+ * @param {number} currentSP - Player's current SP.
+ * @param {number} currentUV - Player's current UV.
+ * @returns {{spCost: number, uvCost: number, purchasedCount: number, canAffordAll: boolean}}
+ */
+function getCumulativePurchaseInfo(item, requestedQuantity, startLevelOrCount, currentSP, currentUV) {
+    let totalSpCost = 0;
+    let totalUvCost = 0;
+    let itemsCanBePurchased = 0;
+    let tempLevelOrCount = startLevelOrCount;
+
+    const isMaxBuy = requestedQuantity === 'MAX';
+    const loopLimit = isMaxBuy ? Infinity : Number(requestedQuantity);
+
+    if (isNaN(loopLimit) && !isMaxBuy) {
+        return { spCost: 0, uvCost: 0, purchasedCount: 0, canAffordAll: false };
+    }
+
+    for (let i = 0; i < loopLimit; i++) {
+        const costOfNextItemSp = Math.floor(item.baseCost * Math.pow(item.costMultiplier, tempLevelOrCount));
+        const costOfNextItemUv = item.baseUVCost ? Math.floor(item.baseUVCost * Math.pow(item.costMultiplier, tempLevelOrCount)) : 0;
+
+        if (currentSP >= (totalSpCost + costOfNextItemSp) && currentUV >= (totalUvCost + costOfNextItemUv)) {
+            totalSpCost += costOfNextItemSp;
+            totalUvCost += costOfNextItemUv;
+            itemsCanBePurchased++;
+            tempLevelOrCount++;
+        } else {
+            if (isMaxBuy) break;
+            // For specific quantity, if we can't afford this one, we can't afford all.
+            // The loop will break, and purchasedCount will be less than requestedQuantity.
+            // The `canAffordAll` flag will be determined after the loop.
+            break; 
+        }
+    }
+    return { spCost: totalSpCost, uvCost: totalUvCost, purchasedCount: itemsCanBePurchased, canAffordAll: (isMaxBuy ? true : itemsCanBePurchased === Number(requestedQuantity)) };
+}
+
 // --- Rendering Functions (defined at top level, use module-scoped DOM vars) ---
 // These will be called after DOM is loaded and vars are assigned.
 function renderPerClickUpgrades() {
     if (!perClickUpgradesList) return;
     perClickUpgradesList.innerHTML = '';
     gameState.clickUpgrades.forEach((upgrade, index) => {
-        const cost = getCost(upgrade).sp;
+        const cost = getCost(upgrade).sp; // Cost for a single item for initial display
         const itemDiv = document.createElement('div');
         itemDiv.className = 'upgrade-item';
         itemDiv.innerHTML = `
@@ -189,11 +232,19 @@ function renderPerClickUpgrades() {
             <p>${upgrade.description}</p>
             <p>Effekt: +${formatNumber(upgrade.baseSpPerClickBonus)} SP pro Klick pro Level</p>
             <p>Aktueller Bonus: +${formatNumber(upgrade.level * upgrade.baseSpPerClickBonus)} SP pro Klick</p>
-            <button id="buy-click-upgrade-${upgrade.id}" data-index="${index}" ${gameState.sp < cost ? 'disabled' : ''}>
-                Upgrade (Kosten: ${formatNumber(cost)} SP)
+            <div class="quantity-selector" data-upgrade-id="${upgrade.id}" data-upgrade-type="click">
+                <span>Menge: </span>
+                <button class="quantity-btn active" data-amount="1">1</button>
+                <button class="quantity-btn" data-amount="10">10</button>
+                <button class="quantity-btn" data-amount="25">25</button>
+                <button class="quantity-btn" data-amount="MAX">Max</button>
+            </div>
+            <button class="buy-button" data-upgrade-id="${upgrade.id}" data-upgrade-type="click">
+                Kaufe 1 für ${formatNumber(cost)} SP
             </button>
         `;
         perClickUpgradesList.appendChild(itemDiv);
+        updateBuyButtonState(upgrade.id, "click", "1"); // Initialize with default quantity
     });
 }
 
@@ -201,8 +252,8 @@ function renderAutomatedGenerators() {
     if (!automatedGeneratorsList) return;
     automatedGeneratorsList.innerHTML = '';
     gameState.generators.forEach((generator, index) => {
-        const cost = getCost(generator);
-        let costString = `Kosten: ${formatNumber(cost.sp)} SP`;
+        const cost = getCost(generator); // Cost for a single item for initial display
+        let costString = `${formatNumber(cost.sp)} SP`;
         if (cost.uv > 0) {
             costString += ` + ${formatNumber(cost.uv)} UV`;
         }
@@ -213,11 +264,19 @@ function renderAutomatedGenerators() {
             <p>${generator.description}</p>
             <p>Generiert: ${formatNumber(generator.baseSps)} SP/Sekunde pro Einheit</p>
             <p>Gesamt von diesem Typ: ${formatNumber(generator.count * generator.baseSps)} SP/Sekunde</p>
-            <button id="buy-generator-${generator.id}" data-index="${index}" ${gameState.sp < cost.sp || gameState.uv < cost.uv ? 'disabled' : ''}>
-                Buy (${costString})
+            <div class="quantity-selector" data-upgrade-id="${generator.id}" data-upgrade-type="generator">
+                <span>Menge: </span>
+                <button class="quantity-btn active" data-amount="1">1</button>
+                <button class="quantity-btn" data-amount="10">10</button>
+                <button class="quantity-btn" data-amount="25">25</button>
+                <button class="quantity-btn" data-amount="MAX">Max</button>
+            </div>
+            <button class="buy-button" data-upgrade-id="${generator.id}" data-upgrade-type="generator">
+                Kaufe 1 für ${costString}
             </button>
         `;
         automatedGeneratorsList.appendChild(itemDiv);
+        updateBuyButtonState(generator.id, "generator", "1"); // Initialize
     });
 }
 
@@ -272,17 +331,6 @@ export function updateUI() {
     if (spPerClickDisplay) spPerClickDisplay.textContent = formatNumber(gameState.spPerClick);
     if (totalSpsDisplay) totalSpsDisplay.textContent = formatNumber(gameState.totalSps);
 
-    gameState.clickUpgrades.forEach((upgrade) => {
-        const button = document.getElementById(`buy-click-upgrade-${upgrade.id}`);
-        if (button) button.disabled = gameState.sp < getCost(upgrade).sp;
-    });
-    gameState.generators.forEach((generator) => {
-        const button = document.getElementById(`buy-generator-${generator.id}`);
-        if (button) {
-            const cost = getCost(generator);
-            button.disabled = gameState.sp < cost.sp || gameState.uv < cost.uv;
-        }
-    });
     if (prestigeButton) prestigeButton.style.display = (gameState.sp >= 1e12) ? 'block' : 'none';
     if (implementFirewallButton) {
         const project = gameState.firewallProject;
@@ -298,6 +346,40 @@ export function updateUI() {
     // Update casino games UI if the module is initialized and function exists
     if (typeof updateCasinoGamesUI === 'function') {
         updateCasinoGamesUI();
+    }
+    updateAllBuyButtonStates(); // Refresh all buy buttons
+}
+
+// NEW function to update buy button text and disabled state
+function updateBuyButtonState(upgradeId, upgradeType, selectedAmount) {
+    const item = upgradeType === 'click'
+        ? gameState.clickUpgrades.find(u => u.id === upgradeId)
+        : gameState.generators.find(g => g.id === upgradeId);
+
+    if (!item) return;
+
+    const buyButton = document.querySelector(`.buy-button[data-upgrade-id="${upgradeId}"][data-upgrade-type="${upgradeType}"]`);
+    if (!buyButton) return;
+
+    const currentLevelOrCount = upgradeType === 'click' ? item.level : item.count;
+    const purchaseInfo = getCumulativePurchaseInfo(item, selectedAmount, currentLevelOrCount, gameState.sp, gameState.uv);
+
+    let costString = `${formatNumber(purchaseInfo.spCost)} SP`;
+    if (item.baseUVCost && item.baseUVCost > 0) {
+        costString += ` + ${formatNumber(purchaseInfo.uvCost)} UV`;
+    }
+    
+    const displayQuantity = selectedAmount === 'MAX' ? (purchaseInfo.purchasedCount > 0 ? purchaseInfo.purchasedCount : 'Max') : selectedAmount;
+
+    if (purchaseInfo.purchasedCount > 0) {
+        buyButton.textContent = `Kaufe ${displayQuantity} für ${costString}`;
+        buyButton.disabled = false;
+    } else {
+        // For MAX buy, if nothing can be bought, reflect that.
+        // For specific quantities, if not affordable, also reflect that.
+        const buyText = selectedAmount === 'MAX' ? `Kaufe Max (Nicht genug Ressourcen)` : `Kaufe ${selectedAmount} (Nicht genug Ressourcen)`;
+        buyButton.textContent = buyText;
+        buyButton.disabled = true;
     }
 }
 
@@ -369,37 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
         gameState.stats.totalClicksMade++;
         updateUI(); // Calls exported updateUI
         checkAchievements(); // Calls exported checkAchievements
-    }
-
-    function buyClickUpgrade(index) {
-        const upgrade = gameState.clickUpgrades[index];
-        const cost = getCost(upgrade).sp;
-        if (gameState.sp >= cost) {
-            gameState.sp -= cost;
-            upgrade.level++;
-            calculateSpPerClick();
-            renderPerClickUpgrades(); // Internal rendering
-            updateUI();
-            checkAchievements();
-        } else {
-            alert("Nicht genug SP!");
-        }
-    }
-
-    function buyGenerator(index) {
-        const generator = gameState.generators[index];
-        const cost = getCost(generator);
-        if (gameState.sp >= cost.sp && gameState.uv >= cost.uv) {
-            gameState.sp -= cost.sp;
-            gameState.uv -= cost.uv;
-            generator.count++;
-            calculateTotalSps();
-            renderAutomatedGenerators(); // Internal rendering
-            updateUI();
-            checkAchievements();
-        } else {
-            alert("Nicht genug Ressourcen (SP oder UV)!");
-        }
     }
 
     function purchaseFirewallProject() {
@@ -660,23 +711,82 @@ document.addEventListener('DOMContentLoaded', () => {
         if (importSeedButton) importSeedButton.addEventListener('click', () => importGameStateFromSeed());
         if (implementFirewallButton) implementFirewallButton.addEventListener('click', purchaseFirewallProject);
 
-        if (perClickUpgradesList) {
-            perClickUpgradesList.addEventListener('click', (event) => {
-                const target = event.target;
-                if (target.tagName === 'BUTTON' && target.id.startsWith('buy-click-upgrade-')) {
-                    const index = parseInt(target.dataset.index, 10);
-                    if (!isNaN(index)) buyClickUpgrade(index);
+        // New delegated event listener for upgrade lists
+        function handleUpgradeListClick(event) {
+            const target = event.target;
+
+            if (target.classList.contains('quantity-btn')) {
+                const selectorDiv = target.closest('.quantity-selector');
+                if (!selectorDiv) return;
+
+                const upgradeId = selectorDiv.dataset.upgradeId;
+                const upgradeType = selectorDiv.dataset.upgradeType;
+                const amount = target.dataset.amount;
+
+                selectorDiv.querySelectorAll('.quantity-btn').forEach(btn => btn.classList.remove('active'));
+                target.classList.add('active');
+
+                updateBuyButtonState(upgradeId, upgradeType, amount);
+
+            } else if (target.classList.contains('buy-button')) {
+                const upgradeId = target.dataset.upgradeId;
+                const upgradeType = target.dataset.upgradeType;
+                
+                const quantitySelectorDiv = target.closest('.upgrade-item, .generator-item').querySelector('.quantity-selector');
+                if (!quantitySelectorDiv) return;
+                
+                const activeQuantityButton = quantitySelectorDiv.querySelector('.quantity-btn.active');
+                const selectedQuantity = activeQuantityButton ? activeQuantityButton.dataset.amount : "1";
+
+                if (upgradeType === 'click') {
+                    buyClickUpgradeHandler(upgradeId, selectedQuantity);
+                } else if (upgradeType === 'generator') {
+                    buyGeneratorHandler(upgradeId, selectedQuantity);
                 }
-            });
+            }
         }
-        if (automatedGeneratorsList) {
-            automatedGeneratorsList.addEventListener('click', (event) => {
-                const target = event.target;
-                if (target.tagName === 'BUTTON' && target.id.startsWith('buy-generator-')) {
-                    const index = parseInt(target.dataset.index, 10);
-                    if (!isNaN(index)) buyGenerator(index);
-                }
-            });
+
+        if (perClickUpgradesList) perClickUpgradesList.addEventListener('click', handleUpgradeListClick);
+        if (automatedGeneratorsList) automatedGeneratorsList.addEventListener('click', handleUpgradeListClick);
+
+        // New Handler functions for buying
+        function buyClickUpgradeHandler(upgradeId, requestedQuantity) {
+            const upgrade = gameState.clickUpgrades.find(u => u.id === upgradeId);
+            if (!upgrade) return;
+
+            const purchaseInfo = getCumulativePurchaseInfo(upgrade, requestedQuantity, upgrade.level, gameState.sp, gameState.uv);
+
+            if (purchaseInfo.purchasedCount > 0) {
+                gameState.sp -= purchaseInfo.spCost;
+                upgrade.level += purchaseInfo.purchasedCount;
+                
+                calculateSpPerClick();
+                renderPerClickUpgrades(); // Re-render to update levels and costs
+                updateUI(); 
+                checkAchievements();
+            } else {
+                // alert("Nicht genug SP!"); // Optionally notify user
+            }
+        }
+
+        function buyGeneratorHandler(generatorId, requestedQuantity) {
+            const generator = gameState.generators.find(g => g.id === generatorId);
+            if (!generator) return;
+
+            const purchaseInfo = getCumulativePurchaseInfo(generator, requestedQuantity, generator.count, gameState.sp, gameState.uv);
+
+            if (purchaseInfo.purchasedCount > 0) {
+                gameState.sp -= purchaseInfo.spCost;
+                gameState.uv -= purchaseInfo.uvCost;
+                generator.count += purchaseInfo.purchasedCount;
+
+                calculateTotalSps();
+                renderAutomatedGenerators(); 
+                updateUI();
+                checkAchievements();
+            } else {
+                // alert("Nicht genug Ressourcen (SP oder UV)!");
+            }
         }
 
         if (openCasinoButton && casinoModal) {
@@ -708,5 +818,14 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("School District Digital Hero initialisiert!");
     }
 
+    function updateAllBuyButtonStates() {
+        document.querySelectorAll('.quantity-selector').forEach(selectorDiv => {
+            const upgradeId = selectorDiv.dataset.upgradeId;
+            const upgradeType = selectorDiv.dataset.upgradeType;
+            const activeButton = selectorDiv.querySelector('.quantity-btn.active');
+            const amount = activeButton ? activeButton.dataset.amount : '1';
+            updateBuyButtonState(upgradeId, upgradeType, amount);
+        });
+    }
     init();
 });
