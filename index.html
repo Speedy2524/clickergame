@@ -111,6 +111,7 @@
             <button id="import-seed-button">Von Seed Importieren</button>
             <button id="reset-button">Spiel Zurücksetzen (Hard)</button>
             <button id="open-casino-button" title="Casino öffnen">🎰 Casino</button>
+            <button id="open-runner-minigame-button" title="Datenstrom-Runner spielen">🏃 Datenstrom-Runner</button>
         </footer>
     </div>
 
@@ -188,6 +189,26 @@
             </div>
         </div>
     </div>
+
+    <div id="runner-minigame-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <button class="close-modal-button" title="Schließen">&times;</button>
+            <h2>🏃 Datenstrom-Runner</h2>
+            <div id="runner-game-area" style="text-align: center;">
+                <canvas id="runnerCanvas" width="300" height="400" style="border:1px solid #000; background-color: #2c3e50; margin-bottom: 10px;"></canvas>
+                <div id="runner-ui">
+                    <p>Score: <span id="runner-score">0</span></p>
+                    <button id="start-runner-button">Spiel starten</button>
+                    <p id="runner-game-over" style="display:none; color:red; font-weight:bold; margin-top:10px;">Game Over!</p>
+                </div>
+            </div>
+            <div id="runner-instructions" style="margin-top: 15px; font-size: 0.9em; text-align: center;">
+                <p>Bewege dich nach links und rechts, um Hindernissen auszuweichen und Datenpakete zu sammeln!</p>
+                <p>(Benutze die Pfeiltasten Links/Rechts oder tippe/klicke auf die linke/rechte Bildschirmhälfte des Spielbereichs)</p>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="game.js"></script>
 </body>
 </html>

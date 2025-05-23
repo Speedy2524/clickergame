@@ -1,4 +1,5 @@
 import { initCasino, updateCasinoGamesUI } from './casino.js';
+import { initRunnerMinigame, openRunnerMinigame } from './runnerMinigame.js';
 
 // --- Game State ---
 export let gameState = {
@@ -131,8 +132,9 @@ export let gameState = {
 let spDisplay, uvDisplay, pdcDisplay, spPerClickDisplay, totalSpsDisplay,
     clickButton, perClickUpgradesList, automatedGeneratorsList,
     implementFirewallButton, prestigeUpgradesList, prestigeButton,
-    achievementsListContainer, resetButton, exportSeedButton, importSeedButton,
-    casinoModal, openCasinoButton, closeModalButton,
+    achievementsListContainer, resetButton, exportSeedButton, importSeedButton, // General buttons
+    casinoModal, openCasinoButton, closeModalButton, // Casino modal elements
+    runnerMinigameModal, openRunnerMinigameButton, closeRunnerModalButton, // Runner minigame modal elements
     achievementNotificationElement, achievementNameElement, achievementTierElement, achievementRewardElement;
 
 // --- Exportable Utility Functions ---
@@ -350,6 +352,21 @@ export function updateUI() {
     updateAllBuyButtonStates(); // Refresh all buy buttons
 }
 
+// Moved this function to module scope to be accessible by updateUI
+function updateAllBuyButtonStates() {
+    // Ensure this runs after DOM is ready and elements are available
+    if (typeof perClickUpgradesList === 'undefined' || typeof automatedGeneratorsList === 'undefined') return; // Guard against early calls
+    if (!document.body.contains(perClickUpgradesList) && !document.body.contains(automatedGeneratorsList)) return;
+
+
+    document.querySelectorAll('.quantity-selector').forEach(selectorDiv => {
+        const upgradeId = selectorDiv.dataset.upgradeId;
+        const upgradeType = selectorDiv.dataset.upgradeType;
+        const activeButton = selectorDiv.querySelector('.quantity-btn.active');
+        const amount = activeButton ? activeButton.dataset.amount : '1';
+        updateBuyButtonState(upgradeId, upgradeType, amount);
+    });
+}
 // NEW function to update buy button text and disabled state
 function updateBuyButtonState(upgradeId, upgradeType, selectedAmount) {
     const item = upgradeType === 'click'
@@ -437,9 +454,16 @@ document.addEventListener('DOMContentLoaded', () => {
     resetButton = document.getElementById('reset-button');
     exportSeedButton = document.getElementById('export-seed-button');
     importSeedButton = document.getElementById('import-seed-button');
+    
     casinoModal = document.getElementById('casino-modal');
     openCasinoButton = document.getElementById('open-casino-button');
     closeModalButton = document.querySelector('#casino-modal .close-modal-button');
+
+    // Runner Minigame Elements (ensure these IDs exist in your HTML)
+    runnerMinigameModal = document.getElementById('runner-minigame-modal');
+    openRunnerMinigameButton = document.getElementById('open-runner-minigame-button');
+    closeRunnerModalButton = document.querySelector('#runner-minigame-modal .close-modal-button');
+
     achievementNotificationElement = document.getElementById('achievement-notification');
     achievementNameElement = document.getElementById('achievement-toast-name');
     achievementTierElement = document.getElementById('achievement-toast-tier');
@@ -795,13 +819,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (closeModalButton && casinoModal) {
             closeModalButton.addEventListener('click', () => { casinoModal.style.display = 'none'; });
         }
-        if (casinoModal) {
-            window.addEventListener('click', (event) => {
-                if (event.target === casinoModal) casinoModal.style.display = 'none';
-            });
+        
+        // Runner Minigame Modal Listeners
+        if (openRunnerMinigameButton && runnerMinigameModal) {
+            openRunnerMinigameButton.addEventListener('click', openRunnerMinigame);
         }
+        if (closeRunnerModalButton && runnerMinigameModal) {
+            closeRunnerModalButton.addEventListener('click', () => { runnerMinigameModal.style.display = 'none'; });
+        }
+
+        // Combined window click listener for modals
+        window.addEventListener('click', (event) => {
+            if (casinoModal && event.target === casinoModal) {
+                casinoModal.style.display = 'none';
+            }
+            if (runnerMinigameModal && event.target === runnerMinigameModal) {
+                runnerMinigameModal.style.display = 'none';
+            }
+        });
         
         initCasino(); // Initialize casino module
+        initRunnerMinigame(); // Initialize runner minigame module
+
 
         // Attempt to load from seed, or start new game if prompt is cancelled
         const seedFromPrompt = prompt("Möchtest du einen Spielstand laden? Gib deinen Seed ein oder klicke auf 'Abbrechen' für ein neues Spiel.");
@@ -818,14 +857,5 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("School District Digital Hero initialisiert!");
     }
 
-    function updateAllBuyButtonStates() {
-        document.querySelectorAll('.quantity-selector').forEach(selectorDiv => {
-            const upgradeId = selectorDiv.dataset.upgradeId;
-            const upgradeType = selectorDiv.dataset.upgradeType;
-            const activeButton = selectorDiv.querySelector('.quantity-btn.active');
-            const amount = activeButton ? activeButton.dataset.amount : '1';
-            updateBuyButtonState(upgradeId, upgradeType, amount);
-        });
-    }
     init();
 });

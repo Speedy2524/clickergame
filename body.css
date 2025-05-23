@@ -24,11 +24,8 @@ header {
     text-align: center;
     border-bottom: 2px solid #e0e0e0;
     padding-bottom: 10px;
-    /* Styles für den "Sticky Header" */
     position: -webkit-sticky; /* Für Safari-Browser */
     position: sticky;
-    /* top: 40px; berechnet sich aus body.padding-top (20px) + container.padding (20px oben) */
-    /* Dies stellt sicher, dass der Header an seiner ursprünglichen Position kleben bleibt. */
     top: 0; /* Lässt den Header ganz oben am Bildschirmrand kleben */
     background-color: #fff; /* Stellt sicher, dass der Header nicht transparent ist, wenn Inhalt darunter scrollt */
     z-index: 1000; /* Stellt sicher, dass der Header über anderen Elementen liegt */
@@ -89,10 +86,8 @@ main {
 }
 
 #click-icon {
-    width: 60px;  /* Adjust this value as needed */
-    height: 60px; /* Adjust this value as needed */
-    /* object-fit: contain; /* Uncomment this if you want to ensure the image aspect ratio is maintained */
-    /* vertical-align: middle; /* This might not be needed if the button uses flexbox for alignment */
+    width: 60px;
+    height: 60px;
 }
 
 #click-button:hover {
@@ -123,23 +118,17 @@ section h2 {
 .upgrade-item, .generator-item {
     border: 1px solid #ddd;
     padding: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 15px; /* Adjusted from original */
     border-radius: 4px;
     background-color: #fff;
+    padding-bottom: 10px; /* From multi-buy styles */
+    border-bottom: 1px dashed #eee; /* From multi-buy styles */
+}
+.upgrade-item:last-child, .generator-item:last-child { /* From multi-buy styles */
+    border-bottom: none;
+    margin-bottom: 0;
 }
 
-.upgrade-item button, .generator-item button {
-    background-color: #2ecc71;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.upgrade-item button:hover, .generator-item button:hover {
-    background-color: #27ae60;
-}
 
 footer {
     text-align: center;
@@ -161,7 +150,6 @@ footer button {
 footer button:hover {
     background-color: #6c7a7b;
 }
-/* ... (dein existierendes CSS) ... */
 
 /* Errungenschaften Sektion */
 #achievements-section {
@@ -264,29 +252,98 @@ footer button:hover {
     font-size: 0.95em;
 }
 
-/* ... (dein existierendes CSS) ... */
+/* Casino Modal Stile */
+.modal {
+    display: none; /* Standardmäßig ausgeblendet */
+    position: fixed;
+    z-index: 1010; /* Über dem Achievement-Toast */
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; /* Scrollen ermöglichen, falls Inhalt zu groß */
+    background-color: rgba(0,0,0,0.6); /* Dunkler Overlay-Hintergrund */
+    align-items: center;
+    justify-content: center;
+}
 
-/* IT-Lotterie Sektion */
-/* Stile für den Inhalt innerhalb des Casino-Modals, ehemals #gambling-section */
-#lottery-game-section { /* Angepasst von #gambling-section, jetzt im Modal */
-    background-color: #e8eaf6; /* Leicht lavendel/hellblau */
+.modal-content {
+    background-color: #fefefe;
+    margin: auto;
     padding: 20px;
-    margin-top: 10px; /* Etwas weniger Margin, da es im Modal ist */
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 600px; /* Maximale Breite für das Modal */
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    position: relative;
     text-align: center;
 }
 
-#lottery-game-section h3 { /* Angepasst von h2 zu h3 für die Semantik im Modal */
-    color: #3f51b5; /* Indigo */
+.modal-content h2 {
+    color: #333;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+.close-modal-button {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.close-modal-button:hover,
+.close-modal-button:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Button zum Öffnen des Casinos im Footer */
+#open-casino-button {
+    background-color: #673ab7; /* Deep Purple */
+}
+#open-runner-minigame-button { /* Style for the new runner game button */
+    background-color: #009688; /* Teal */
+}
+
+
+/* Casino Game Sections General Styles */
+.casino-game-section {
+    padding: 15px; /* Reduced from 20px for lottery */
+    margin-top: 15px; /* Consistent margin */
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08); /* Consistent shadow */
+    text-align: center; /* Common for lottery, adaptable for others */
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+.casino-game-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+.casino-game-section h3 {
     margin-bottom: 15px;
 }
 
-#lottery-game-section p { /* Allgemeine p-Tags innerhalb der Lotterie-Sektion */
+/* IT-Lotterie Sektion Specifics */
+#lottery-game-section {
+    background-color: #e8eaf6; /* Leicht lavendel/hellblau */
+}
+#lottery-game-section h3 {
+    color: #3f51b5; /* Indigo */
+}
+#lottery-game-section p {
     color: #333;
     margin-bottom: 10px;
 }
-
 #play-lottery-button {
     background-color: #ff9800; /* Orange */
     color: white;
@@ -309,83 +366,15 @@ footer button:hover {
     font-weight: bold;
     color: #1976d2; /* Blau für das Ergebnis */
 }
-/* Casino Modal Stile */
-.modal {
-    display: none; /* Standardmäßig ausgeblendet */
-    position: fixed;
-    z-index: 1010; /* Über dem Achievement-Toast */
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    overflow: auto; /* Scrollen ermöglichen, falls Inhalt zu groß */
-    background-color: rgba(0,0,0,0.6); /* Dunkler Overlay-Hintergrund */
-    /* Flexbox für Zentrierung des modal-content */
-    align-items: center;
-    justify-content: center;
-}
 
-.modal-content {
-    background-color: #fefefe;
-    margin: auto; /* Wird durch Flexbox-Zentrierung des Elternelements weniger kritisch, aber schadet nicht */
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%;
-    max-width: 600px; /* Maximale Breite für das Modal */
-    border-radius: 10px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    position: relative; /* Für die Positionierung des Schließen-Buttons */
-    text-align: center; /* Zentriert den Inhalt wie h2 und die Lotterie-Sektion */
-}
 
-.modal-content h2 { /* Titel des Casino-Modals */
-    color: #333;
-    margin-top: 0;
-    margin-bottom: 20px;
-}
-
-.close-modal-button {
-    color: #aaa;
-    /* float: right; Ersetzt durch absolute Positionierung für bessere Kontrolle */
-    font-size: 28px;
-    font-weight: bold;
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    line-height: 1; /* Verhindert zusätzlichen vertikalen Platz */
-}
-
-.close-modal-button:hover,
-.close-modal-button:focus {
-    color: black;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-/* Button zum Öffnen des Casinos im Footer */
-#open-casino-button {
-    background-color: #673ab7; /* Deep Purple */
-    color: white;
-    /* Erbt andere Button-Stile vom generischen 'footer button' Selektor */
-}
-
-/* Blackjack Game Styles */
+/* Blackjack Game Section Specifics */
 #blackjack-game-section {
     background-color: #e0f2f1; /* Tealish background */
-    padding: 15px;
-    margin-top: 15px;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
-
 #blackjack-game-section h3 {
     color: #00796b; /* Dark Teal */
-    margin-bottom: 15px;
 }
-
 .blackjack-hand-area {
     margin-bottom: 15px;
     padding: 10px;
@@ -393,26 +382,25 @@ footer button:hover {
     border: 1px solid #b2dfdb; /* Light Teal border */
     border-radius: 4px;
 }
-
-.cards-display {
-    min-height: 30px; /* Space for cards */
+.cards-display { /* General for Blackjack and Higher/Lower card display */
+    min-height: 30px;
     padding: 5px;
-    font-family: 'Courier New', Courier, monospace; /* Monospace for card text */
+    font-family: 'Courier New', Courier, monospace;
     font-size: 1.1em;
     letter-spacing: 2px;
 }
-
-.cards-display .card {
+.cards-display .card, .card-display { /* For individual cards */
     display: inline-block;
-    padding: 5px 8px;
-    border: 1px solid #4db6ac; /* Medium Teal */
-    background-color: #f0f0f0;
-    margin-right: 5px;
-    border-radius: 3px;
-    min-width: 30px; /* Ensure cards have some width */
-    text-align: center;
+    padding: 10px 15px; /* From original .card-display */
+    border: 1px solid #4db6ac; /* Medium Teal, or #ccc from original */
+    background-color: white; /* From original .card-display */
+    color: black; /* From original .card-display */
+    margin: 5px; /* From original .card-display */
+    border-radius: 5px; /* From original .card-display */
+    min-width: 50px; /* From original .card-display */
+    text-align: center; /* From original .card-display */
+    font-size: 1.5em; /* From original .card-display */
 }
-
 #blackjack-controls button {
     background-color: #009688; /* Teal */
     color: white;
@@ -422,21 +410,15 @@ footer button:hover {
     border-radius: 4px;
     cursor: pointer;
 }
-
 #blackjack-controls button:hover {
     background-color: #00796b; /* Darker Teal */
 }
-
 #blackjack-double-button {
-    background-color: #ffc107; /* Amber - für eine "besondere Aktion" Farbe */
-    /* Erbt andere Stile wie color, padding, etc. von #blackjack-controls button */
+    background-color: #ffc107; /* Amber */
 }
-
 #blackjack-double-button:hover {
     background-color: #ffa000; /* Dunkleres Amber */
 }
-
-
 #blackjack-controls input[type="number"] {
     padding: 6px;
     margin-right: 10px;
@@ -444,42 +426,83 @@ footer button:hover {
     border-radius: 4px;
     width: 80px;
 }
-
 #blackjack-message {
     margin-top: 10px;
     font-style: italic;
     color: #004d40; /* Darkest Teal */
 }
-/* Add or update these styles in your CSS */
+
+/* Higher or Lower Game Section Specifics */
+#higher-lower-game-section {
+    background-color: #fffde7; /* Light Yellow */
+}
+#higher-lower-game-section h3 {
+    color: #fbc02d; /* Yellow / Amber */
+}
+.hl-cards-display { /* From previous suggestion */
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 10px;
+}
+.hl-info p, .hl-controls label { /* From previous suggestion */
+    margin: 5px 0;
+}
+#hl-controls button { /* Assuming #hl-controls is the parent of HL buttons */
+    background-color: #795548; /* Brown */
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    margin: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#hl-controls button:hover {
+    background-color: #5d4037; /* Darker Brown */
+}
+#hl-controls input[type="number"] {
+    padding: 6px;
+    margin-right: 10px;
+    border: 1px solid #a1887f; /* Light Brown border */
+    border-radius: 4px;
+    width: 80px;
+}
+#hl-message {
+    margin-top: 10px;
+    font-style: italic;
+    color: #4e342e; /* Dark Brown */
+}
+
+
+/* Multi-Buy Upgrade Button Styles */
 .quantity-selector {
-    margin: 5px 0 8px 0; /* Added some bottom margin */
-    display: flex; /* For better alignment of span and buttons */
+    margin: 5px 0 8px 0;
+    display: flex;
     align-items: center;
 }
 .quantity-selector span {
     margin-right: 5px;
 }
 .quantity-btn {
-    padding: 4px 8px; /* Slightly adjusted padding */
-    margin: 0 3px;   /* Slightly adjusted margin */
+    padding: 4px 8px;
+    margin: 0 3px;
     cursor: pointer;
     border: 1px solid #ccc;
     background-color: #f0f0f0;
-    border-radius: 3px; /* Added slight rounding */
-    font-size: 0.9em; /* Slightly smaller font for quantity buttons */
+    border-radius: 3px;
+    font-size: 0.9em;
 }
 .quantity-btn.active {
-    background-color: #4CAF50; /* Green for active */
+    background-color: #4CAF50;
     color: white;
-    border-color: #388E3C; /* Darker green border */
+    border-color: #388E3C;
 }
-.buy-button { /* Ensure your general buy buttons can be styled like this */
+.buy-button {
     padding: 8px 12px;
     cursor: pointer;
     border: 1px solid #555;
     background-color: #ddd;
     border-radius: 4px;
-    min-width: 200px; /* Give buy buttons a consistent width */
+    min-width: 200px;
     text-align: center;
 }
 .buy-button:hover:not(:disabled) {
@@ -492,13 +515,52 @@ footer button:hover {
     border-color: #d0d0d0;
 }
 
-/* Ensure upgrade items have some spacing */
-.upgrade-item, .generator-item {
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px dashed #eee;
+/* Styles for the Runner Minigame Modal */
+#runner-minigame-modal .modal-content {
+    /* max-width: 350px; */ /* Example if you want it narrower */
 }
-.upgrade-item:last-child, .generator-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
+#runner-game-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 15px;
+}
+#runnerCanvas {
+    margin-bottom: 10px;
+    cursor: pointer;
+}
+#runner-ui p {
+    margin: 5px 0;
+    font-size: 1.1em;
+}
+#runner-ui button {
+    padding: 10px 15px;
+    font-size: 1em;
+    cursor: pointer;
+    background-color: #5cb85c; /* Different green for this game's start button */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    margin-top: 5px;
+}
+#runner-ui button:disabled {
+    background-color: #aaa;
+    cursor: not-allowed;
+}
+#runner-game-over {
+    color: #e74c3c;
+    font-weight: bold;
+    margin-top: 10px;
+}
+#runner-instructions {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: #f0f8ff; /* Alice blue */
+    border-top: 1px solid #d1e0ec;
+    font-size: 0.9em;
+    text-align: center;
+    border-radius: 0 0 8px 8px;
+}
+#runner-instructions p {
+    margin: 5px 0;
 }
