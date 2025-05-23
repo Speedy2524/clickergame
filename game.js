@@ -36,11 +36,24 @@ export let gameState = {
         totalClicksMade: 0,
         lotteryPlays: 0,
         lotteryJackpots: 0,
+        higherLowerPlays: 0,
+        higherLowerWins: 0,
+        higherLowerHighestStreak: 0,
     },
     blackjack: {
         deck: [], playerHand: [], dealerHand: [], playerScore: 0, dealerScore: 0,
         betAmount: 0, gameInProgress: false,
         message: "Setze deinen Einsatz und klicke auf 'Deal'.", dealerRevealed: false
+    },
+    higherLower: {
+        deck: [],
+        previousCard: null,
+        currentCard: null,
+        betAmount: 0,
+        streak: 0,
+        gameInProgress: false,
+        message: "Setze deinen Einsatz und starte das Spiel.",
+        potentialWinnings: 0
     },
     achievements: {
         unermuedlicherKlicker: {
@@ -100,7 +113,17 @@ export let gameState = {
                 { name: 'Bronze', value: 1, reward: { sp: 200000, uv: 20, pdc: 0.005 }, unlocked: false, desc: '1 Jackpot gewonnen.' },
             ],
             checkType: 'stat', statProperty: 'lotteryJackpots'
-        }
+        },
+        kartenhai: {
+            name: 'Kartenhai',
+            description: 'Erreiche eine hohe Serie bei Höher oder Tiefer.',
+            tiers: [
+                { name: 'Bronze', value: 3, reward: { sp: 20000 }, unlocked: false, desc: 'Erreiche eine Serie von 3.' },
+                { name: 'Silber', value: 7, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: 'Erreiche eine Serie von 7.' },
+                { name: 'Gold', value: 12, reward: { sp: 500000, uv: 25, pdc: 0.005 }, unlocked: false, desc: 'Erreiche eine Serie von 12.' }
+            ],
+            checkType: 'stat', statProperty: 'higherLowerHighestStreak'
+        },
     }
 };
 
@@ -443,12 +466,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickUpgradeData = gameState.clickUpgrades.map(u => `${u.id}:${u.level}`).join(',');
         const generatorData = gameState.generators.map(g => `${g.id}:${g.count}`).join(',');
         const achievementData = getAchievementSaveString();
-        const seedVersion = "1.2";
+        const seedVersion = "1.3"; // Updated version to reflect new stats
         const seedPayload = [
-            seedVersion, gameState.sp, gameState.uv, gameState.pdc.toFixed(4),
-            clickUpgradeData, generatorData, gameState.prestigesDone,
-            gameState.firewallProject.implemented ? "1" : "0", Date.now(),
-            `${gameState.stats.totalClicksMade},${gameState.stats.lotteryPlays},${gameState.stats.lotteryJackpots}`,
+            seedVersion,
+            gameState.sp,
+            gameState.uv,
+            gameState.pdc.toFixed(4),
+            clickUpgradeData,
+            generatorData,
+            gameState.prestigesDone,
+            gameState.firewallProject.implemented ? "1" : "0",
+            Date.now(),
+            `${gameState.stats.totalClicksMade},${gameState.stats.lotteryPlays},${gameState.stats.lotteryJackpots},${gameState.stats.higherLowerPlays || 0},${gameState.stats.higherLowerWins || 0},${gameState.stats.higherLowerHighestStreak || 0}`,
             achievementData
         ].join('|');
         try {
@@ -471,11 +500,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const seedPayload = atob(encodedSeed);
             const parts = seedPayload.split('|');
             const seedVersion = parts[0];
-            if (seedVersion !== "1" && seedVersion !== "1.1" && seedVersion !== "1.2") {
+            // Allow loading from previous versions for compatibility
+            if (seedVersion !== "1" && seedVersion !== "1.1" && seedVersion !== "1.2" && seedVersion !== "1.3") {
                 alert(`Ungültige oder nicht unterstützte Seed-Version.`);
                 return;
             }
-            const loadedGs = getInitialGameState();
+            const loadedGs = getInitialGameState(); // Start with a fresh state
             loadedGs.sp = parseInt(parts[1], 10);
             loadedGs.uv = parseInt(parts[2], 10);
             loadedGs.pdc = parseFloat(parts[3]);
@@ -493,6 +523,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadedGs.stats.totalClicksMade = parseInt(statParts[0], 10) || 0;
                 if (statParts.length > 1) loadedGs.stats.lotteryPlays = parseInt(statParts[1], 10) || 0;
                 if (statParts.length > 2) loadedGs.stats.lotteryJackpots = parseInt(statParts[2], 10) || 0;
+                // Load Higher or Lower stats if present (for seed version 1.3+)
+                if (seedVersion === "1.3" || (seedVersion === "1.2" && statParts.length > 3)) { // Check for 1.2 for forward compatibility if it was accidentally saved with more stats
+                    if (statParts.length > 3) loadedGs.stats.higherLowerPlays = parseInt(statParts[3], 10) || 0;
+                    if (statParts.length > 4) loadedGs.stats.higherLowerWins = parseInt(statParts[4], 10) || 0;
+                    if (statParts.length > 5) loadedGs.stats.higherLowerHighestStreak = parseInt(statParts[5], 10) || 0;
+                }
             }
             if (parts.length > 10 && parts[10]) {
                 parts[10].split(';').forEach(achState => {
@@ -529,7 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (generator) generator.count = count;
                 }
             });
-            gameState = loadedGs;
+            gameState = loadedGs; // Assign the fully loaded state
             calculateSpPerClick();
             calculateTotalSps();
             const offlineEarnings = calculateAndAwardOfflineProgress(loadedTimestampFromSeed);
@@ -537,7 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 gameState.sp += offlineEarnings;
                 alert(`Willkommen zurück!\nDu hast ${formatNumber(offlineEarnings)} SP verdient, während du offline warst.`);
             }
-            checkAchievements();
+            checkAchievements(); // Check achievements after loading all state
             alert("Spiel von Seed geladen!");
         } catch (e) {
             console.error("Error loading from seed:", e);
@@ -547,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getInitialGameState() {
+        // Deep copy of the initial state structure to avoid modification issues
         return JSON.parse(JSON.stringify({
             sp: 0, uv: 0, pdc: 0, spPerClick: 1, totalSps: 0,
             clickUpgrades: [
@@ -564,8 +601,23 @@ document.addEventListener('DOMContentLoaded', () => {
             ],
             firewallProject: { id: 'firewall', name: 'Firewall Implementierung', costSP: 750000, costUV: 30, implemented: false },
             prestigesDone: 0, prestigeUpgrades: [], lastSavedTimestamp: null,
-            stats: { totalClicksMade: 0, lotteryPlays: 0, lotteryJackpots: 0 },
-            blackjack: { deck: [], playerHand: [], dealerHand: [], playerScore: 0, dealerScore: 0, betAmount: 0, gameInProgress: false, message: "Setze deinen Einsatz und klicke auf 'Deal'.", dealerRevealed: false },
+            stats: {
+                totalClicksMade: 0,
+                lotteryPlays: 0,
+                lotteryJackpots: 0,
+                higherLowerPlays: 0,
+                higherLowerWins: 0,
+                higherLowerHighestStreak: 0,
+            },
+            blackjack: {
+                deck: [], playerHand: [], dealerHand: [], playerScore: 0, dealerScore: 0,
+                betAmount: 0, gameInProgress: false,
+                message: "Setze deinen Einsatz und klicke auf 'Deal'.", dealerRevealed: false
+            },
+            higherLower: {
+                deck: [], previousCard: null, currentCard: null, betAmount: 0, streak: 0,
+                gameInProgress: false, message: "Setze deinen Einsatz und starte das Spiel.", potentialWinnings: 0
+            },
             itLotteryCostSP: 10000, itLotteryLastResult: "Noch nicht gespielt.",
             achievements: {
                 unermuedlicherKlicker: { name: 'Der Unermüdliche', description: 'Klicke wiederholt auf den "Problem lösen"-Button.', tiers: [ { name: 'Bronze', value: 1000, reward: { sp: 10000 }, unlocked: false, desc: '1.000 Klicks.' },{ name: 'Silber', value: 5000, reward: { sp: 50000 }, unlocked: false, desc: '5.000 Klicks.' },{ name: 'Gold', value: 10000, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: '10.000 Klicks.' } ], checkType: 'stat', statProperty: 'totalClicksMade' },
@@ -573,7 +625,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 automatisierungsAficionado: { name: 'Automatisierungs-Aficionado', description: 'Nutze eine Vielzahl automatisierter Systeme.', tiers: [ { name: 'Bronze', value: 3, reward: { sp: 100000 }, unlocked: false, desc: '3 verschiedene Typen.' },{ name: 'Silber', value: 4, reward: { sp: 400000, uv: 30 }, unlocked: false, desc: '4 verschiedene Typen.' },{ name: 'Gold', value: 5, reward: { sp: 1000000, uv: 100, pdc: 0.02 }, unlocked: false, desc: '5 verschiedene Typen.' } ], checkType: 'distinctGeneratorTypes' },
                 gutscheinTycoon: { name: 'Gutschein-Tycoon', description: 'Horte Upgrade-Voucher (UV).', tiers: [ { name: 'Bronze', value: 100, reward: { sp: 150000 }, unlocked: false, desc: '100 UV.' },{ name: 'Silber', value: 500, reward: { sp: 750000, uv: 50 }, unlocked: false, desc: '500 UV.' },{ name: 'Gold', value: 1000, reward: { sp: 2000000, uv: 100, pdc: 0.02 }, unlocked: false, desc: '1.000 UV.' } ], checkType: 'currency', currencyType: 'uv' },
                 risikofreudig: { name: 'Risikofreudig', description: 'Versuche dein Glück bei der IT-Lotterie.', tiers: [ { name: 'Bronze', value: 10, reward: { sp: 5000 }, unlocked: false, desc: '10 Mal gespielt.' },{ name: 'Silber', value: 50, reward: { sp: 25000, uv: 5 }, unlocked: false, desc: '50 Mal gespielt.' },{ name: 'Gold', value: 100, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: '100 Mal gespielt.' } ], checkType: 'stat', statProperty: 'lotteryPlays' },
-                glueckspilz: { name: 'Glückspilz', description: 'Knacke den Jackpot in der IT-Lotterie.', tiers: [ { name: 'Bronze', value: 1, reward: { sp: 200000, uv: 20, pdc: 0.005 }, unlocked: false, desc: '1 Jackpot gewonnen.' } ], checkType: 'stat', statProperty: 'lotteryJackpots' }
+                glueckspilz: { name: 'Glückspilz', description: 'Knacke den Jackpot in der IT-Lotterie.', tiers: [ { name: 'Bronze', value: 1, reward: { sp: 200000, uv: 20, pdc: 0.005 }, unlocked: false, desc: '1 Jackpot gewonnen.' } ], checkType: 'stat', statProperty: 'lotteryJackpots' },
+                kartenhai: { name: 'Kartenhai', description: 'Erreiche eine hohe Serie bei Höher oder Tiefer.', tiers: [ { name: 'Bronze', value: 3, reward: { sp: 20000 }, unlocked: false, desc: 'Erreiche eine Serie von 3.' }, { name: 'Silber', value: 7, reward: { sp: 100000, uv: 10 }, unlocked: false, desc: 'Erreiche eine Serie von 7.' }, { name: 'Gold', value: 12, reward: { sp: 500000, uv: 25, pdc: 0.005 }, unlocked: false, desc: 'Erreiche eine Serie von 12.' } ], checkType: 'stat', statProperty: 'higherLowerHighestStreak' }
             }
         }));
     }
@@ -590,6 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateSpPerClick();
         calculateTotalSps();
         renderAll(); // This will call the top-level renderAchievements and updateUI
+        updateUI(); // Ensure main UI is also updated
     }
 
     function renderAll() {
@@ -646,6 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // If prompt is cancelled or empty, finalizeStateLoad will use the initial game state
             console.log("Neues Spiel gestartet oder kein Seed eingegeben.");
+            gameState = getInitialGameState(); // Ensure it starts with a fresh state if no seed
         }
         
         finalizeStateLoad();

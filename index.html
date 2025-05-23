@@ -5,6 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Digitaler Held des Schulbezirks</title>
     <link rel="stylesheet" href="body.css">
+    <style>
+        /* Basic styling for card display in casino games if not already in body.css */
+        .cards-display .card, .card-display {
+            border: 1px solid #ccc;
+            padding: 10px 15px;
+            font-size: 1.5em;
+            min-width: 50px;
+            text-align: center;
+            background-color: white;
+            color: black;
+            border-radius: 5px;
+            margin: 5px;
+            display: inline-block; /* For Blackjack cards */
+        }
+        .hl-cards-display {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 10px;
+        }
+        .hl-info p, .hl-controls label {
+            margin: 5px 0;
+        }
+        .casino-game-section { /* Added for consistency with previous suggestions */
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .casino-game-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -93,14 +126,14 @@
             <button class="close-modal-button" title="Schließen">&times;</button>
             <h2>🎰 IT-Casino</h2>
             <div id="casino-games-container">
-                <section id="lottery-game-section"> <!-- Ehemals gambling-section, jetzt spezifischer -->
+                <section id="lottery-game-section" class="casino-game-section">
                     <h3>IT-Lotterie</h3>
                     <p>Versuche dein Glück! Jedes Los kostet <strong id="lottery-cost-display">10,000</strong> SP.</p>
                     <button id="play-lottery-button">Los kaufen!</button>
                     <p>Letztes Ergebnis: <span id="lottery-result-display">Noch nicht gespielt.</span></p>
                 </section>
-                <hr>
-                <section id="blackjack-game-section">
+                
+                <section id="blackjack-game-section" class="casino-game-section">
                     <h3>Blackjack (21)</h3>
                     <div id="blackjack-table">
                         <div class="blackjack-hand-area">
@@ -120,6 +153,35 @@
                             <button id="blackjack-double-button" style="display:none;">Double Down</button>
                         </div>
                         <p id="blackjack-message">Setze deinen Einsatz und klicke auf "Deal".</p>
+                    </div>
+                </section>
+                
+                <section id="higher-lower-game-section" class="casino-game-section">
+                    <h3>Höher oder Tiefer</h3>
+                    <div class="hl-game-area">
+                        <div class="hl-cards-display">
+                            <div>
+                                <p>Vorherige Karte:</p>
+                                <div class="card-display" id="hl-previous-card">-</div>
+                            </div>
+                            <div>
+                                <p>Aktuelle Karte:</p>
+                                <div class="card-display" id="hl-current-card">-</div>
+                            </div>
+                        </div>
+                        <div class="hl-info">
+                            <p>Serie: <span id="hl-streak">0</span></p>
+                            <p>Möglicher Gewinn: <span id="hl-potential-winnings">0</span> SP</p>
+                        </div>
+                        <p id="hl-message">Setze deinen Einsatz und starte das Spiel.</p>
+                    </div>
+                    <div class="hl-controls">
+                        <label for="hl-bet-amount">Einsatz (SP):</label>
+                        <input type="number" id="hl-bet-amount" value="100" min="10">
+                        <button id="hl-start-button">Spiel starten</button>
+                        <button id="hl-higher-button" style="display:none;">Höher</button>
+                        <button id="hl-lower-button" style="display:none;">Tiefer</button>
+                        <button id="hl-cashout-button" style="display:none;">Auszahlen</button>
                     </div>
                 </section>
                 <!-- Hier könnten zukünftige Casino-Spiele als weitere <section> Elemente hinzugefügt werden -->
