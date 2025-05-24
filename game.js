@@ -1,5 +1,7 @@
 import { initCasino, updateCasinoGamesUI } from './casino.js';
 import { initRunnerMinigame, openRunnerMinigame } from './runnerMinigame.js';
+import { initWargame, openWargame } from './wargame.js';
+
 
 // --- Game State ---
 export let gameState = {
@@ -135,6 +137,7 @@ let spDisplay, uvDisplay, pdcDisplay, spPerClickDisplay, totalSpsDisplay,
     achievementsListContainer, resetButton, exportSeedButton, importSeedButton, // General buttons
     casinoModal, openCasinoButton, closeModalButton, // Casino modal elements
     runnerMinigameModal, openRunnerMinigameButton, closeRunnerModalButton, // Runner minigame modal elements
+    wargameModal, openWargameButton, closeWargameModalButton, // Wargame modal elements
     achievementNotificationElement, achievementNameElement, achievementTierElement, achievementRewardElement;
 
 // --- Exportable Utility Functions ---
@@ -459,10 +462,13 @@ document.addEventListener('DOMContentLoaded', () => {
     openCasinoButton = document.getElementById('open-casino-button');
     closeModalButton = document.querySelector('#casino-modal .close-modal-button');
 
-    // Runner Minigame Elements (ensure these IDs exist in your HTML)
     runnerMinigameModal = document.getElementById('runner-minigame-modal');
     openRunnerMinigameButton = document.getElementById('open-runner-minigame-button');
     closeRunnerModalButton = document.querySelector('#runner-minigame-modal .close-modal-button');
+
+    wargameModal = document.getElementById('wargame-modal');
+    openWargameButton = document.getElementById('open-wargame-button');
+    closeWargameModalButton = document.querySelector('#wargame-modal .close-modal-button');
 
     achievementNotificationElement = document.getElementById('achievement-notification');
     achievementNameElement = document.getElementById('achievement-toast-name');
@@ -813,6 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // Casino Modal Listeners
         if (openCasinoButton && casinoModal) {
             openCasinoButton.addEventListener('click', () => { casinoModal.style.display = 'flex'; });
         }
@@ -828,6 +835,14 @@ document.addEventListener('DOMContentLoaded', () => {
             closeRunnerModalButton.addEventListener('click', () => { runnerMinigameModal.style.display = 'none'; });
         }
 
+        // Wargame Modal Listeners
+        if (openWargameButton && wargameModal) {
+            openWargameButton.addEventListener('click', openWargame);
+        }
+        if (closeWargameModalButton && wargameModal) {
+            closeWargameModalButton.addEventListener('click', () => { wargameModal.style.display = 'none'; });
+        }
+
         // Combined window click listener for modals
         window.addEventListener('click', (event) => {
             if (casinoModal && event.target === casinoModal) {
@@ -836,10 +851,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (runnerMinigameModal && event.target === runnerMinigameModal) {
                 runnerMinigameModal.style.display = 'none';
             }
+            if (wargameModal && event.target === wargameModal) {
+                wargameModal.style.display = 'none';
+            }
         });
         
         initCasino(); // Initialize casino module
         initRunnerMinigame(); // Initialize runner minigame module
+        initWargame(); // Initialize wargame module
 
 
         // Attempt to load from seed, or start new game if prompt is cancelled

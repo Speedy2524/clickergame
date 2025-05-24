@@ -112,6 +112,7 @@
             <button id="reset-button">Spiel Zurücksetzen (Hard)</button>
             <button id="open-casino-button" title="Casino öffnen">🎰 Casino</button>
             <button id="open-runner-minigame-button" title="Datenstrom-Runner spielen">🏃 Datenstrom-Runner</button>
+            <button id="open-wargame-button" title="Wargame spielen">⚔️ Wargame</button>
         </footer>
     </div>
 
@@ -205,6 +206,27 @@
             <div id="runner-instructions" style="margin-top: 15px; font-size: 0.9em; text-align: center;">
                 <p>Bewege dich nach links und rechts, um Hindernissen auszuweichen und Datenpakete zu sammeln!</p>
                 <p>(Benutze die Pfeiltasten Links/Rechts oder tippe/klicke auf die linke/rechte Bildschirmhälfte des Spielbereichs)</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="wargame-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <button class="close-modal-button" title="Schließen">&times;</button>
+            <h2>⚔️ Wargame</h2>
+            <div id="wargame-area" style="text-align: center;">
+                <canvas id="wargameCanvas" width="600" height="300" style="border:1px solid #333; background-color: #e0e0e0; margin-bottom: 10px;"></canvas>
+                <div id="wargame-ui">
+                    <p>Spieler Gold: <span id="wargame-player-gold">100</span> | Basis HP: <span id="wargame-player-base-hp">1000</span></p>
+                    <p>Gegner Basis HP: <span id="wargame-enemy-base-hp">1000</span></p>
+                    <div id="wargame-unit-buttons">
+                        <!-- Unit spawn buttons will be added here by JS -->
+                        <button data-unit-type="soldier">Soldat (Kosten: 50)</button>
+                        <button data-unit-type="archer">Bogenschütze (Kosten: 75)</button>
+                    </div>
+                    <button id="start-wargame-button" style="margin-top:10px;">Wargame starten</button>
+                    <p id="wargame-message" style="margin-top:10px; font-weight:bold;"></p>
+                </div>
             </div>
         </div>
     </div>

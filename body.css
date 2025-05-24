@@ -564,3 +564,16 @@ footer button:hover {
 #runner-instructions p {
     margin: 5px 0;
 }
+#wargame-unit-buttons button {
+    background-color: #5cb85c; /* Green */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    margin: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#wargame-unit-buttons button:hover {
+    background-color: #4cae4c;
+}
+
