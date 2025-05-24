@@ -17,6 +17,10 @@ let gameLoopId = null;
 let playerGoldIntervalId = null;
 let enemySpawnIntervalId = null;
 
+// --- Image Assets ---
+let playerBaseImageObject = null;
+let enemyBaseImageObject = null;
+
 const BASE_WIDTH = 50;
 const BASE_HEIGHT = 100;
 const UNIT_RADIUS = 10;
@@ -24,7 +28,7 @@ const PLAYER_BASE_X_END = BASE_WIDTH;
 const ENEMY_BASE_X_START = () => canvas.width - BASE_WIDTH;
 const PLAYER_SPAWN_X = BASE_WIDTH + UNIT_RADIUS + 5;
 const ENEMY_SPAWN_X = () => canvas.width - BASE_WIDTH - UNIT_RADIUS - 5;
-const UNIT_Y_POSITION = () => canvas.height - 50;
+const UNIT_Y_POSITION = () => canvas.height - UNIT_RADIUS; // Units' center Y, so bottom of unit is at canvas.height
 
 const ARROW_SPEED = 3;
 const ARROW_DAMAGE_MODIFIER = 1;
@@ -47,16 +51,38 @@ const UNIT_TYPES = {
 };
 let enemyGold = 100;
 
-function drawBases() {
-    // Player base (left)
-    ctx.fillStyle = 'darkblue';
-    ctx.fillRect(0, canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
-
-    // Enemy base (right)
-    ctx.fillStyle = 'darkred';
-    ctx.fillRect(ENEMY_BASE_X_START(), canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
+// Helper function to load images asynchronously
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = (err) => {
+            console.error(`Failed to load image: ${src}`, err);
+            reject(err); // Reject so we can handle the error
+        };
+        img.src = src;
+    });
 }
 
+function drawBases() {
+    // Player base (left)
+    if (playerBaseImageObject) {
+        ctx.drawImage(playerBaseImageObject, 0, canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
+    } else {
+        // Fallback if image not loaded
+        ctx.fillStyle = 'darkblue';
+        ctx.fillRect(0, canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
+    }
+
+    // Enemy base (right)
+    if (enemyBaseImageObject) {
+        ctx.drawImage(enemyBaseImageObject, ENEMY_BASE_X_START(), canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
+    } else {
+        // Fallback if image not loaded
+        ctx.fillStyle = 'darkred';
+        ctx.fillRect(ENEMY_BASE_X_START(), canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
+    }
+}
 function drawUnits() {
     playerUnits.forEach(unit => {
         ctx.fillStyle = unit.color;
@@ -127,9 +153,9 @@ function updateUnitPositions() {
             canMove = false;
         }
         // Archers might prefer to attack units first if they are closer than the base and in range
-        if (unit.type === 'archer' && !canMove) { 
+        if (unit.type === 'archer' && !canMove) {
             let closerEnemyTarget = null;
-            for (const enemy of enemyUnits) { 
+            for (const enemy of enemyUnits) {
                 const distToPotentialEnemy = Math.abs(unit.x - enemy.x);
                 if (enemy.x > unit.x && distToPotentialEnemy <= unit.range) {
                     if (!closerEnemyTarget || distToPotentialEnemy < Math.abs(unit.x - closerEnemyTarget.x)) {
@@ -148,7 +174,7 @@ function updateUnitPositions() {
         }
 
 
-        if (canMove) { 
+        if (canMove) {
             unit.x += unit.speed;
         }
     });
@@ -199,14 +225,16 @@ function spawnProjectile(owner, targetUnit, isBaseShooting = false) {
     let projectileX;
 
     if (isBaseShooting) {
+        // Projectile originates from the edge of the base
         projectileX = (owner.owner === 'player' ? PLAYER_BASE_X_END : ENEMY_BASE_X_START());
         if (targetUnit) {
             projectileY = targetUnit.y; // Aim at the target unit's y
         } else { // Fallback if no specific target unit y (should ideally not happen if targeting logic is correct)
-            projectileY = UNIT_Y_POSITION() - BASE_HEIGHT / 2 + (Math.random() * BASE_HEIGHT * 0.6 - BASE_HEIGHT * 0.3);
+            // Projectile originates from the vertical middle of the base
+            projectileY = canvas.height - (BASE_HEIGHT / 2) + (Math.random() * BASE_HEIGHT * 0.4 - BASE_HEIGHT * 0.2); // Center +/- 20% of base height
         }
     } else { // Unit shooting
-        projectileX = owner.x + (owner.owner === 'player' ? UNIT_RADIUS : -UNIT_RADIUS);
+        projectileX = owner.x + (owner.owner === 'player' ? UNIT_RADIUS : -UNIT_RADIUS); // From the edge of the unit
         projectileY = owner.y;
     }
 
@@ -558,8 +586,18 @@ function endWargame(playerWon) {
     updateMainUI(); 
 }
 
+function performInitialDraw() {
+    if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBases();
+        drawUnits();
+        drawProjectiles();
+        updateWargameUI();
+    }
+}
 
-export function initWargame() {
+
+export async function initWargame() {
     canvas = document.getElementById('wargameCanvas');
     if (!canvas) { console.error("Wargame canvas not found!"); return; }
     ctx = canvas.getContext('2d');
@@ -573,6 +611,18 @@ export function initWargame() {
     const startButton = document.getElementById('start-wargame-button');
     if (startButton) startButton.addEventListener('click', startWargameInternal);
 
+    try {
+        // Load base images
+        playerBaseImageObject = await loadImage('player_base.png'); // Adjust path if needed
+        enemyBaseImageObject = await loadImage('enemy_base.png');   // Adjust path if needed
+        console.log("Base images loaded successfully.");
+    } catch (error) {
+        console.error("Error loading base images. Will use fallback drawing.", error);
+    }
+
+    // Perform initial draw regardless of image loading success (drawBases has fallbacks)
+    performInitialDraw();
+
     unitButtonsContainer.innerHTML = ''; 
     for (const unitKey in UNIT_TYPES) {
         const unit = UNIT_TYPES[unitKey];
@@ -583,11 +633,6 @@ export function initWargame() {
         unitButtonsContainer.appendChild(button);
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBases();
-    drawUnits(); 
-    drawProjectiles(); 
-    updateWargameUI();
     console.log("Wargame Minigame Initialisiert!");
 }
 
