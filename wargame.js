@@ -7,8 +7,8 @@ let unitButtonsContainer;
 
 // --- Game State ---
 let playerGold = 100;
-let playerBaseHP = 1000;
-let enemyBaseHP = 1000;
+// let playerBaseHP = 1000; // Now managed by PLAYER_BASE_STATS
+// let enemyBaseHP = 1000;  // Now managed by ENEMY_BASE_STATS
 let playerUnits = [];
 let enemyUnits = [];
 let projectiles = []; // Array to store active projectiles
@@ -27,8 +27,19 @@ const ENEMY_SPAWN_X = () => canvas.width - BASE_WIDTH - UNIT_RADIUS - 5;
 const UNIT_Y_POSITION = () => canvas.height - 50;
 
 const ARROW_SPEED = 3;
-const ARROW_DAMAGE_MODIFIER = 1; // Can be used to adjust arrow damage relative to unit's attack
-const ARROW_LENGTH = 10; // For drawing the arrow line
+const ARROW_DAMAGE_MODIFIER = 1;
+const ARROW_LENGTH = 10;
+
+const HEALTH_BAR_WIDTH = 20;
+const HEALTH_BAR_HEIGHT = 4;
+const HEALTH_BAR_OFFSET_Y = UNIT_RADIUS + 5; // How far above the unit the health bar appears
+
+const PLAYER_BASE_STATS = {
+    hp: 1000, attack: 5, range: 200, attackCooldown: 2000, lastAttackTime: 0, attackers: []
+};
+const ENEMY_BASE_STATS = {
+    hp: 1000, attack: 5, range: 200, attackCooldown: 2200, lastAttackTime: 0, attackers: []
+};
 
 const UNIT_TYPES = {
     soldier: { name: "Soldat", cost: 50, hp: 100, attack: 10, speed: 0.5, color: 'blue', range: UNIT_RADIUS * 2.5, attackCooldown: 1000, lastAttackTime: 0 },
@@ -52,6 +63,16 @@ function drawUnits() {
         ctx.beginPath();
         ctx.arc(unit.x, unit.y, UNIT_RADIUS, 0, Math.PI * 2);
         ctx.fill();
+
+        // Draw health bar for player unit
+        const maxHp = UNIT_TYPES[unit.type].hp;
+        const currentHpPercentage = unit.hp / maxHp;
+        // Background of health bar (e.g., red for damage taken)
+        ctx.fillStyle = 'red';
+        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
+        // Foreground of health bar (green for current health)
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH * currentHpPercentage, HEALTH_BAR_HEIGHT);
     });
 
     enemyUnits.forEach(unit => {
@@ -59,6 +80,14 @@ function drawUnits() {
         ctx.beginPath();
         ctx.arc(unit.x, unit.y, UNIT_RADIUS, 0, Math.PI * 2);
         ctx.fill();
+
+        // Draw health bar for enemy unit
+        const maxHp = UNIT_TYPES[unit.type].hp;
+        const currentHpPercentage = unit.hp / maxHp;
+        ctx.fillStyle = 'red';
+        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH * currentHpPercentage, HEALTH_BAR_HEIGHT);
     });
 }
 
@@ -68,7 +97,6 @@ function drawProjectiles() {
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
-        // Arrow points in direction of travel
         const endX = p.x + (p.owner === 'player' ? ARROW_LENGTH : -ARROW_LENGTH);
         ctx.lineTo(endX, p.y);
         ctx.stroke();
@@ -77,23 +105,50 @@ function drawProjectiles() {
 
 function updateWargameUI() {
     if (playerGoldDisplay) playerGoldDisplay.textContent = playerGold;
-    if (playerBaseHpDisplay) playerBaseHpDisplay.textContent = playerBaseHP;
-    if (enemyBaseHpDisplay) enemyBaseHpDisplay.textContent = enemyBaseHP;
+    if (playerBaseHpDisplay) playerBaseHpDisplay.textContent = PLAYER_BASE_STATS.hp;
+    if (enemyBaseHpDisplay) enemyBaseHpDisplay.textContent = ENEMY_BASE_STATS.hp;
 }
 
 function updateUnitPositions() {
     // Move player units
     playerUnits.forEach(unit => {
         let canMove = true;
+        // Check for enemy units in range to attack
         for (const enemy of enemyUnits) {
             const distance = Math.abs(unit.x - enemy.x);
-            // Unit stops if an enemy is in range AND in front of it
-            if (distance <= unit.range && unit.x < enemy.x) {
+            if (distance <= unit.range && unit.x < enemy.x) { // Unit stops if an enemy is in range AND in front of it
                 canMove = false;
                 break;
             }
         }
-        if (canMove && unit.x + UNIT_RADIUS < ENEMY_BASE_X_START()) { // Stop before entering base if not attacking it
+        // Check if unit is in range of enemy base
+        const distanceToEnemyBase = ENEMY_BASE_X_START() - (unit.x + UNIT_RADIUS);
+        if (distanceToEnemyBase <= unit.range) { // All units stop if base is in range
+            canMove = false;
+        }
+        // Archers might prefer to attack units first if they are closer than the base and in range
+        if (unit.type === 'archer' && !canMove) { 
+            let closerEnemyTarget = null;
+            for (const enemy of enemyUnits) { 
+                const distToPotentialEnemy = Math.abs(unit.x - enemy.x);
+                if (enemy.x > unit.x && distToPotentialEnemy <= unit.range) {
+                    if (!closerEnemyTarget || distToPotentialEnemy < Math.abs(unit.x - closerEnemyTarget.x)) {
+                        closerEnemyTarget = enemy;
+                    }
+                }
+            }
+            if (closerEnemyTarget) {
+                 const distToCloserEnemy = Math.abs(unit.x - closerEnemyTarget.x);
+                 if (distToCloserEnemy < distanceToEnemyBase) {
+                    // Already stopped for a closer unit, do nothing extra here for base stopping
+                 } else {
+                    // Base is closer or equally close among valid targets
+                 }
+            }
+        }
+
+
+        if (canMove) { 
             unit.x += unit.speed;
         }
     });
@@ -108,19 +163,59 @@ function updateUnitPositions() {
                 break;
             }
         }
-        if (canMove && unit.x - UNIT_RADIUS > PLAYER_BASE_X_END) {
+        const distanceToPlayerBase = (unit.x - UNIT_RADIUS) - PLAYER_BASE_X_END;
+        if (distanceToPlayerBase <= unit.range) {
+            canMove = false;
+        }
+
+        if (unit.type === 'archer' && !canMove) {
+            let closerPlayerTarget = null;
+            for (const playerUnit of playerUnits) {
+                const distToPotentialPlayer = Math.abs(unit.x - playerUnit.x);
+                 if (playerUnit.x < unit.x && distToPotentialPlayer <= unit.range) {
+                    if(!closerPlayerTarget || distToPotentialPlayer < Math.abs(unit.x - closerPlayerTarget.x)) {
+                        closerPlayerTarget = playerUnit;
+                    }
+                 }
+            }
+            if(closerPlayerTarget){
+                const distToCloserPlayer = Math.abs(unit.x - closerPlayerTarget.x);
+                if(distToCloserPlayer < distanceToPlayerBase){
+                    // Already stopped for closer unit
+                } else {
+                    // Base is closer or equally close
+                }
+            }
+        }
+
+        if (canMove) {
             unit.x -= unit.speed;
         }
     });
 }
 
-function spawnProjectile(ownerUnit) {
+function spawnProjectile(owner, targetUnit, isBaseShooting = false) {
+    let projectileY;
+    let projectileX;
+
+    if (isBaseShooting) {
+        projectileX = (owner.owner === 'player' ? PLAYER_BASE_X_END : ENEMY_BASE_X_START());
+        if (targetUnit) {
+            projectileY = targetUnit.y; // Aim at the target unit's y
+        } else { // Fallback if no specific target unit y (should ideally not happen if targeting logic is correct)
+            projectileY = UNIT_Y_POSITION() - BASE_HEIGHT / 2 + (Math.random() * BASE_HEIGHT * 0.6 - BASE_HEIGHT * 0.3);
+        }
+    } else { // Unit shooting
+        projectileX = owner.x + (owner.owner === 'player' ? UNIT_RADIUS : -UNIT_RADIUS);
+        projectileY = owner.y;
+    }
+
     projectiles.push({
-        x: ownerUnit.x + (ownerUnit.owner === 'player' ? UNIT_RADIUS : -UNIT_RADIUS),
-        y: ownerUnit.y, // Fire from unit's y position
-        owner: ownerUnit.owner,
-        damage: ownerUnit.attack * ARROW_DAMAGE_MODIFIER,
-        speed: ARROW_SPEED * (ownerUnit.owner === 'player' ? 1 : -1),
+        x: projectileX,
+        y: projectileY,
+        owner: owner.owner,
+        damage: owner.attack * ARROW_DAMAGE_MODIFIER,
+        speed: ARROW_SPEED * (owner.owner === 'player' ? 1 : -1),
     });
 }
 
@@ -134,18 +229,21 @@ function handleCombat() {
         for (let i = enemyUnits.length - 1; i >= 0; i--) {
             const eUnit = enemyUnits[i];
             const distance = Math.abs(pUnit.x - eUnit.x);
-            // Check if enemy is in range AND in front
             if (distance <= pUnit.range && pUnit.x < eUnit.x) {
                 if (pUnit.type === 'archer') {
-                    spawnProjectile({ ...pUnit, owner: 'player' });
+                    spawnProjectile({ ...pUnit, owner: 'player' }, eUnit);
                 } else { // Melee
                     eUnit.hp -= pUnit.attack;
                     if (eUnit.hp <= 0) {
                         enemyUnits.splice(i, 1);
+                        const attackerIndex = PLAYER_BASE_STATS.attackers.indexOf(eUnit);
+                        if (attackerIndex > -1) {
+                            PLAYER_BASE_STATS.attackers.splice(attackerIndex, 1);
+                        }
                     }
                 }
                 pUnit.lastAttackTime = currentTime;
-                break; 
+                break;
             }
         }
     });
@@ -159,11 +257,15 @@ function handleCombat() {
             const distance = Math.abs(eUnit.x - pUnit.x);
             if (distance <= eUnit.range && eUnit.x > pUnit.x) {
                 if (eUnit.type === 'archer') {
-                    spawnProjectile({ ...eUnit, owner: 'enemy' });
+                    spawnProjectile({ ...eUnit, owner: 'enemy' }, pUnit);
                 } else { // Melee
                     pUnit.hp -= eUnit.attack;
                     if (pUnit.hp <= 0) {
                         playerUnits.splice(i, 1);
+                        const attackerIndex = ENEMY_BASE_STATS.attackers.indexOf(pUnit);
+                        if (attackerIndex > -1) {
+                            ENEMY_BASE_STATS.attackers.splice(attackerIndex, 1);
+                        }
                     }
                 }
                 eUnit.lastAttackTime = currentTime;
@@ -182,11 +284,14 @@ function updateProjectiles() {
         if (p.owner === 'player') {
             for (let j = enemyUnits.length - 1; j >= 0; j--) {
                 const eUnit = enemyUnits[j];
-                // Collision check: projectile x is within enemy unit's x bounds, and y is close
                 if (p.x >= eUnit.x - UNIT_RADIUS && p.x <= eUnit.x + UNIT_RADIUS && Math.abs(p.y - eUnit.y) < UNIT_RADIUS * 1.5) {
                     eUnit.hp -= p.damage;
                     if (eUnit.hp <= 0) {
                         enemyUnits.splice(j, 1);
+                        const attackerIndex = PLAYER_BASE_STATS.attackers.indexOf(eUnit);
+                        if (attackerIndex > -1) {
+                            PLAYER_BASE_STATS.attackers.splice(attackerIndex, 1);
+                        }
                     }
                     hit = true;
                     break;
@@ -199,6 +304,10 @@ function updateProjectiles() {
                     pUnit.hp -= p.damage;
                     if (pUnit.hp <= 0) {
                         playerUnits.splice(j, 1);
+                        const attackerIndex = ENEMY_BASE_STATS.attackers.indexOf(pUnit);
+                        if (attackerIndex > -1) {
+                            ENEMY_BASE_STATS.attackers.splice(attackerIndex, 1);
+                        }
                     }
                     hit = true;
                     break;
@@ -212,16 +321,94 @@ function updateProjectiles() {
     }
 }
 
+function handleBaseShooting() {
+    const currentTime = Date.now();
+
+    // Player base shoots
+    if (PLAYER_BASE_STATS.hp > 0 && currentTime - PLAYER_BASE_STATS.lastAttackTime >= PLAYER_BASE_STATS.attackCooldown) {
+        let targetAcquired = false;
+        // Prioritize units that have attacked the base
+        for (let i = PLAYER_BASE_STATS.attackers.length - 1; i >= 0; i--) {
+            const attacker = PLAYER_BASE_STATS.attackers[i];
+            if (attacker && attacker.hp > 0 && enemyUnits.includes(attacker)) {
+                const distanceToAttacker = attacker.x - UNIT_RADIUS - PLAYER_BASE_X_END;
+                if (distanceToAttacker <= PLAYER_BASE_STATS.range && attacker.x > PLAYER_BASE_X_END) {
+                    spawnProjectile({ owner: 'player', attack: PLAYER_BASE_STATS.attack }, attacker, true);
+                    PLAYER_BASE_STATS.lastAttackTime = currentTime;
+                    targetAcquired = true;
+                    break;
+                }
+            } else {
+                PLAYER_BASE_STATS.attackers.splice(i, 1);
+            }
+        }
+
+        // If no specific attacker targeted, fall back to general targeting units very close to the base
+        if (!targetAcquired) {
+            for (const enemy of enemyUnits) {
+                const distanceToBaseEdge = enemy.x - UNIT_RADIUS - PLAYER_BASE_X_END;
+                const isEffectivelyAttackingBase = (enemy.x - UNIT_RADIUS) <= (PLAYER_BASE_X_END + UNIT_RADIUS * 1.5);
+                if (distanceToBaseEdge <= PLAYER_BASE_STATS.range && isEffectivelyAttackingBase && enemy.x > PLAYER_BASE_X_END) {
+                    spawnProjectile({ owner: 'player', attack: PLAYER_BASE_STATS.attack }, enemy, true);
+                    PLAYER_BASE_STATS.lastAttackTime = currentTime;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Enemy base shoots
+    if (ENEMY_BASE_STATS.hp > 0 && currentTime - ENEMY_BASE_STATS.lastAttackTime >= ENEMY_BASE_STATS.attackCooldown) {
+        let targetAcquired = false;
+        for (let i = ENEMY_BASE_STATS.attackers.length - 1; i >= 0; i--) {
+            const attacker = ENEMY_BASE_STATS.attackers[i];
+            if (attacker && attacker.hp > 0 && playerUnits.includes(attacker)) {
+                const distanceToAttacker = ENEMY_BASE_X_START() - (attacker.x + UNIT_RADIUS);
+                if (distanceToAttacker <= ENEMY_BASE_STATS.range && attacker.x < ENEMY_BASE_X_START()) {
+                    spawnProjectile({ owner: 'enemy', attack: ENEMY_BASE_STATS.attack }, attacker, true);
+                    ENEMY_BASE_STATS.lastAttackTime = currentTime;
+                    targetAcquired = true;
+                    break;
+                }
+            } else {
+                ENEMY_BASE_STATS.attackers.splice(i, 1);
+            }
+        }
+        if(!targetAcquired){
+            for (const playerUnit of playerUnits) {
+                const distanceToBaseEdge = ENEMY_BASE_X_START() - (playerUnit.x + UNIT_RADIUS);
+                const isEffectivelyAttackingBase = (playerUnit.x + UNIT_RADIUS) >= (ENEMY_BASE_X_START() - UNIT_RADIUS * 1.5);
+                if (distanceToBaseEdge <= ENEMY_BASE_STATS.range && isEffectivelyAttackingBase && playerUnit.x < ENEMY_BASE_X_START()) {
+                    spawnProjectile({ owner: 'enemy', attack: ENEMY_BASE_STATS.attack }, playerUnit, true);
+                    ENEMY_BASE_STATS.lastAttackTime = currentTime;
+                    break;
+                }
+            }
+        }
+    }
+}
+
 
 function handleBaseAttacks() {
+    const currentTime = Date.now();
     // Player units attack enemy base
     for (let i = playerUnits.length - 1; i >= 0; i--) {
         const unit = playerUnits[i];
-        if (unit.x + UNIT_RADIUS >= ENEMY_BASE_X_START()) {
-            enemyBaseHP -= unit.attack;
-            playerUnits.splice(i, 1);
-            if (enemyBaseHP <= 0) {
-                enemyBaseHP = 0;
+        const distanceToEnemyBaseEdge = ENEMY_BASE_X_START() - (unit.x + UNIT_RADIUS);
+
+        if (distanceToEnemyBaseEdge <= unit.range && 
+            currentTime - unit.lastAttackTime >= unit.attackCooldown) {
+            
+            const enemyInPath = enemyUnits.find(e => e.x > unit.x && Math.abs(e.x - unit.x) < unit.range && (e.x - unit.x) < distanceToEnemyBaseEdge + UNIT_RADIUS); 
+            if (enemyInPath) continue; 
+            
+            ENEMY_BASE_STATS.hp -= unit.attack;            
+            unit.lastAttackTime = currentTime; 
+            if (!ENEMY_BASE_STATS.attackers.includes(unit)) {
+                ENEMY_BASE_STATS.attackers.push(unit);
+            }
+            if (ENEMY_BASE_STATS.hp <= 0) {
+                ENEMY_BASE_STATS.hp = 0;
                 endWargame(true);
                 return;
             }
@@ -231,11 +418,21 @@ function handleBaseAttacks() {
     // Enemy units attack player base
     for (let i = enemyUnits.length - 1; i >= 0; i--) {
         const unit = enemyUnits[i];
-        if (unit.x - UNIT_RADIUS <= PLAYER_BASE_X_END) {
-            playerBaseHP -= unit.attack;
-            enemyUnits.splice(i, 1);
-            if (playerBaseHP <= 0) {
-                playerBaseHP = 0;
+        const distanceToPlayerBaseEdge = (unit.x - UNIT_RADIUS) - PLAYER_BASE_X_END;
+
+        if (distanceToPlayerBaseEdge <= unit.range &&
+            currentTime - unit.lastAttackTime >= unit.attackCooldown) {
+
+            const playerUnitInPath = playerUnits.find(p => p.x < unit.x && Math.abs(p.x - unit.x) < unit.range && (unit.x - p.x) < distanceToPlayerBaseEdge + UNIT_RADIUS);
+            if (playerUnitInPath) continue;
+            
+            PLAYER_BASE_STATS.hp -= unit.attack;            
+            unit.lastAttackTime = currentTime;
+            if (!PLAYER_BASE_STATS.attackers.includes(unit)) {
+                PLAYER_BASE_STATS.attackers.push(unit);
+            }
+            if (PLAYER_BASE_STATS.hp <= 0) {
+                PLAYER_BASE_STATS.hp = 0;
                 endWargame(false);
                 return;
             }
@@ -251,8 +448,9 @@ function gameLoop() {
     updateUnitPositions();
     handleCombat();
     updateProjectiles();
+    handleBaseShooting();
     handleBaseAttacks();
-    if (!gameRunning) return; // Check if game ended
+    if (!gameRunning) return; 
 
     drawBases();
     drawUnits();
@@ -268,16 +466,12 @@ function spawnUnit(unitTypeKey) {
     if (playerGold >= unitData.cost) {
         playerGold -= unitData.cost;
         playerUnits.push({
-            type: unitTypeKey,
+            ...unitData, 
+            type: unitTypeKey, 
             x: PLAYER_SPAWN_X,
             y: UNIT_Y_POSITION(),
-            hp: unitData.hp,
-            attack: unitData.attack,
-            speed: unitData.speed,
-            color: unitData.color,
-            range: unitData.range,
-            attackCooldown: unitData.attackCooldown,
-            lastAttackTime: 0 // Initialize lastAttackTime
+            hp: unitData.hp, 
+            lastAttackTime: 0 
         });
         updateWargameUI();
     } else {
@@ -295,15 +489,11 @@ function enemyAISpawn() {
         const unitData = UNIT_TYPES[randomUnitKey];
         enemyGold -= unitData.cost;
         enemyUnits.push({
+            ...unitData,
             type: randomUnitKey,
             x: ENEMY_SPAWN_X(),
             y: UNIT_Y_POSITION(),
             hp: unitData.hp,
-            attack: unitData.attack,
-            speed: unitData.speed,
-            color: unitData.color, // Consider a distinct enemy color
-            range: unitData.range,
-            attackCooldown: unitData.attackCooldown,
             lastAttackTime: 0
         });
     }
@@ -318,11 +508,15 @@ function startWargameInternal() {
 
     playerGold = 200;
     enemyGold = 150;
-    playerBaseHP = 1000;
-    enemyBaseHP = 1000;
+    PLAYER_BASE_STATS.hp = 1000;
+    ENEMY_BASE_STATS.hp = 1000;
+    PLAYER_BASE_STATS.lastAttackTime = 0;
+    ENEMY_BASE_STATS.lastAttackTime = 0;
+    PLAYER_BASE_STATS.attackers = []; 
+    ENEMY_BASE_STATS.attackers = [];  
     playerUnits = [];
     enemyUnits = [];
-    projectiles = []; // Clear projectiles
+    projectiles = []; 
     gameRunning = true;
     if (wargameMessageDisplay) wargameMessageDisplay.textContent = "Das Spiel beginnt!";
     const startButton = document.getElementById('start-wargame-button');
@@ -331,7 +525,7 @@ function startWargameInternal() {
     playerGoldIntervalId = setInterval(() => {
         if (gameRunning) {
             playerGold += 10;
-            enemyGold += 7; // AI gold generation
+            enemyGold += 7; 
             updateWargameUI();
         }
     }, 2000);
@@ -353,16 +547,15 @@ function endWargame(playerWon) {
     if (playerWon) {
         if (wargameMessageDisplay) wargameMessageDisplay.textContent = "Du hast gewonnen! +250 SP";
         gameState.sp += 250;
-        // Potentially add UV for winning
-        if (Math.random() < 0.1) { // 10% chance for a UV
+        if (Math.random() < 0.1) { 
             gameState.uv += 1;
             if (wargameMessageDisplay) wargameMessageDisplay.textContent += " +1 UV!";
         }
     } else {
         if (wargameMessageDisplay) wargameMessageDisplay.textContent = "Du hast verloren!";
     }
-    updateWargameUI(); // Final UI update for HP
-    updateMainUI(); // Update main game SP/UV
+    updateWargameUI(); 
+    updateMainUI(); 
 }
 
 
@@ -380,7 +573,7 @@ export function initWargame() {
     const startButton = document.getElementById('start-wargame-button');
     if (startButton) startButton.addEventListener('click', startWargameInternal);
 
-    unitButtonsContainer.innerHTML = ''; // Clear existing buttons
+    unitButtonsContainer.innerHTML = ''; 
     for (const unitKey in UNIT_TYPES) {
         const unit = UNIT_TYPES[unitKey];
         const button = document.createElement('button');
@@ -390,11 +583,10 @@ export function initWargame() {
         unitButtonsContainer.appendChild(button);
     }
 
-    // Initial draw when game is first set up
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBases();
-    drawUnits(); // Should be empty initially
-    drawProjectiles(); // Should be empty initially
+    drawUnits(); 
+    drawProjectiles(); 
     updateWargameUI();
     console.log("Wargame Minigame Initialisiert!");
 }
@@ -408,15 +600,18 @@ export function openWargame() {
             const startButton = document.getElementById('start-wargame-button');
             if (startButton) startButton.disabled = false;
 
-            // Reset game state for display before a new game starts
             playerGold = 100;
-            playerBaseHP = 1000;
-            enemyBaseHP = 1000;
+            PLAYER_BASE_STATS.hp = 1000; 
+            ENEMY_BASE_STATS.hp = 1000;  
+            PLAYER_BASE_STATS.lastAttackTime = 0;
+            ENEMY_BASE_STATS.lastAttackTime = 0;
+            PLAYER_BASE_STATS.attackers = [];
+            ENEMY_BASE_STATS.attackers = [];
             playerUnits = [];
             enemyUnits = [];
-            projectiles = []; // Clear projectiles for display
+            projectiles = []; 
 
-            if (ctx) { // Ensure context is available
+            if (ctx) { 
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawBases();
                 drawUnits();
