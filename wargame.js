@@ -2,7 +2,7 @@
 import { gameState, updateUI as updateMainUI, formatNumber } from './game.js';
 
 let canvas, ctx;
-let playerGoldDisplay, playerBaseHpDisplay, enemyBaseHpDisplay, wargameMessageDisplay;
+let playerGoldDisplay, playerBaseHpDisplay, enemyBaseHpDisplay, wargameMessageDisplay, unitStatsTooltipDisplay;
 let unitButtonsContainer;
 
 // --- Game State ---
@@ -17,6 +17,7 @@ let gameLoopId = null;
 let playerGoldIntervalId = null;
 let enemySpawnIntervalId = null;
 
+let visualEffects = []; // For things like melee hit effects
 // --- Image Assets ---
 let playerBaseImageObject = null;
 let enemyBaseImageObject = null;
@@ -47,7 +48,8 @@ const ENEMY_BASE_STATS = {
 
 const UNIT_TYPES = {
     soldier: { name: "Soldat", cost: 50, hp: 100, attack: 10, speed: 0.5, color: 'blue', range: UNIT_RADIUS * 2.5, attackCooldown: 1000, lastAttackTime: 0 },
-    archer: { name: "Bogenschütze", cost: 75, hp: 70, attack: 8, speed: 0.4, color: 'green', range: 150, attackCooldown: 1500, lastAttackTime: 0 }
+    archer: { name: "Bogenschütze", cost: 75, hp: 70, attack: 8, speed: 0.4, color: 'green', range: 150, attackCooldown: 1500, lastAttackTime: 0 },
+    tank: { name: "Panzer", cost: 120, hp: 250, attack: 15, speed: 0.3, color: 'dimgray', range: UNIT_RADIUS * 2.5, attackCooldown: 1200, lastAttackTime: 0 }
 };
 let enemyGold = 100;
 
@@ -83,22 +85,24 @@ function drawBases() {
         ctx.fillRect(ENEMY_BASE_X_START(), canvas.height - BASE_HEIGHT, BASE_WIDTH, BASE_HEIGHT);
     }
 }
+
+function drawHealthBar(unit, currentHp, maxHp) {
+    const currentHpPercentage = Math.max(0, currentHp / maxHp); // Ensure percentage is not negative
+    // Background of health bar
+    ctx.fillStyle = 'red';
+    ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
+    // Foreground of health bar
+    ctx.fillStyle = 'lime';
+    ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH * currentHpPercentage, HEALTH_BAR_HEIGHT);
+}
+
 function drawUnits() {
     playerUnits.forEach(unit => {
         ctx.fillStyle = unit.color;
         ctx.beginPath();
         ctx.arc(unit.x, unit.y, UNIT_RADIUS, 0, Math.PI * 2);
         ctx.fill();
-
-        // Draw health bar for player unit
-        const maxHp = UNIT_TYPES[unit.type].hp;
-        const currentHpPercentage = unit.hp / maxHp;
-        // Background of health bar (e.g., red for damage taken)
-        ctx.fillStyle = 'red';
-        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
-        // Foreground of health bar (green for current health)
-        ctx.fillStyle = 'lime';
-        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH * currentHpPercentage, HEALTH_BAR_HEIGHT);
+        drawHealthBar(unit, unit.hp, UNIT_TYPES[unit.type].hp);
     });
 
     enemyUnits.forEach(unit => {
@@ -106,14 +110,7 @@ function drawUnits() {
         ctx.beginPath();
         ctx.arc(unit.x, unit.y, UNIT_RADIUS, 0, Math.PI * 2);
         ctx.fill();
-
-        // Draw health bar for enemy unit
-        const maxHp = UNIT_TYPES[unit.type].hp;
-        const currentHpPercentage = unit.hp / maxHp;
-        ctx.fillStyle = 'red';
-        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT);
-        ctx.fillStyle = 'lime';
-        ctx.fillRect(unit.x - HEALTH_BAR_WIDTH / 2, unit.y - HEALTH_BAR_OFFSET_Y, HEALTH_BAR_WIDTH * currentHpPercentage, HEALTH_BAR_HEIGHT);
+        drawHealthBar(unit, unit.hp, UNIT_TYPES[unit.type].hp);
     });
 }
 
@@ -129,6 +126,19 @@ function drawProjectiles() {
     });
 }
 
+function drawVisualEffects() {
+    visualEffects.forEach(effect => {
+        if (effect.type === 'meleeHit') {
+            ctx.strokeStyle = 'rgba(255, 255, 100, 0.7)'; // Yellowish, semi-transparent
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Draw slightly offset from unit center, towards the direction of the hit for better visual
+            ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    });
+}
+
 function updateWargameUI() {
     if (playerGoldDisplay) playerGoldDisplay.textContent = playerGold;
     if (playerBaseHpDisplay) playerBaseHpDisplay.textContent = PLAYER_BASE_STATS.hp;
@@ -136,85 +146,51 @@ function updateWargameUI() {
 }
 
 function updateUnitPositions() {
-    // Move player units
     playerUnits.forEach(unit => {
         let canMove = true;
-        // Check for enemy units in range to attack
+        // Check for enemy units in attack range AND in front
         for (const enemy of enemyUnits) {
-            const distance = Math.abs(unit.x - enemy.x);
-            if (distance <= unit.range && unit.x < enemy.x) { // Unit stops if an enemy is in range AND in front of it
+            const distance = enemy.x - unit.x; // Positive if enemy is to the right (in front of player unit)
+            // Stop if enemy is in front AND center-to-center distance is within attack range
+            if (distance > 0 && distance <= unit.range) {
                 canMove = false;
                 break;
             }
         }
-        // Check if unit is in range of enemy base
-        const distanceToEnemyBase = ENEMY_BASE_X_START() - (unit.x + UNIT_RADIUS);
-        if (distanceToEnemyBase <= unit.range) { // All units stop if base is in range
-            canMove = false;
-        }
-        // Archers might prefer to attack units first if they are closer than the base and in range
-        if (unit.type === 'archer' && !canMove) {
-            let closerEnemyTarget = null;
-            for (const enemy of enemyUnits) {
-                const distToPotentialEnemy = Math.abs(unit.x - enemy.x);
-                if (enemy.x > unit.x && distToPotentialEnemy <= unit.range) {
-                    if (!closerEnemyTarget || distToPotentialEnemy < Math.abs(unit.x - closerEnemyTarget.x)) {
-                        closerEnemyTarget = enemy;
-                    }
-                }
-            }
-            if (closerEnemyTarget) {
-                 const distToCloserEnemy = Math.abs(unit.x - closerEnemyTarget.x);
-                 if (distToCloserEnemy < distanceToEnemyBase) {
-                    // Already stopped for a closer unit, do nothing extra here for base stopping
-                 } else {
-                    // Base is closer or equally close among valid targets
-                 }
-            }
-        }
-
-
+        // If no enemy units are engaging, check if the enemy base is in attack range
         if (canMove) {
+            // Distance from player unit's center to the enemy base's front edge
+            const distanceToEnemyBaseEdge = ENEMY_BASE_X_START() - unit.x;
+            if (distanceToEnemyBaseEdge <= unit.range) {
+                canMove = false;
+            }
+        }
+
+        // Also ensure unit doesn't move into/past the base if it can move
+        if (canMove && (unit.x + UNIT_RADIUS) < ENEMY_BASE_X_START()) {
             unit.x += unit.speed;
         }
     });
 
-    // Move enemy units
     enemyUnits.forEach(unit => {
         let canMove = true;
+        // Check for player units in attack range AND in front
         for (const playerUnit of playerUnits) {
-            const distance = Math.abs(unit.x - playerUnit.x);
-            if (distance <= unit.range && unit.x > playerUnit.x) {
+            const distance = unit.x - playerUnit.x; // Positive if playerUnit is to the left (in front of enemy unit)
+            if (distance > 0 && distance <= unit.range) { // playerUnit is in front (left) and in range
                 canMove = false;
                 break;
             }
         }
-        const distanceToPlayerBase = (unit.x - UNIT_RADIUS) - PLAYER_BASE_X_END;
-        if (distanceToPlayerBase <= unit.range) {
-            canMove = false;
-        }
-
-        if (unit.type === 'archer' && !canMove) {
-            let closerPlayerTarget = null;
-            for (const playerUnit of playerUnits) {
-                const distToPotentialPlayer = Math.abs(unit.x - playerUnit.x);
-                 if (playerUnit.x < unit.x && distToPotentialPlayer <= unit.range) {
-                    if(!closerPlayerTarget || distToPotentialPlayer < Math.abs(unit.x - closerPlayerTarget.x)) {
-                        closerPlayerTarget = playerUnit;
-                    }
-                 }
-            }
-            if(closerPlayerTarget){
-                const distToCloserPlayer = Math.abs(unit.x - closerPlayerTarget.x);
-                if(distToCloserPlayer < distanceToPlayerBase){
-                    // Already stopped for closer unit
-                } else {
-                    // Base is closer or equally close
-                }
-            }
-        }
-
+        // If no player units are engaging, check if the player base is in attack range
         if (canMove) {
+            const distanceToPlayerBaseEdge = unit.x - PLAYER_BASE_X_END;
+            if (distanceToPlayerBaseEdge <= unit.range) {
+                canMove = false;
+            }
+        }
+
+        if (canMove && (unit.x - UNIT_RADIUS) > PLAYER_BASE_X_END) { // Ensure unit doesn't move into/past the base
             unit.x -= unit.speed;
         }
     });
@@ -247,6 +223,16 @@ function spawnProjectile(owner, targetUnit, isBaseShooting = false) {
     });
 }
 
+function addVisualEffect(type, x, y, targetUnit = null) {
+    if (type === 'meleeHit') {
+        // Position the effect slightly towards the unit that was hit, or at unit's edge
+        const effectX = targetUnit ? (x + targetUnit.x) / 2 : x;
+        const effectY = targetUnit ? (y + targetUnit.y) / 2 : y;
+        visualEffects.push({ type, x: effectX, y: effectY - UNIT_RADIUS * 0.3, radius: UNIT_RADIUS * 0.2, maxRadius: UNIT_RADIUS * 0.7, duration: 150, startTime: Date.now() });
+    }
+}
+
+
 function handleCombat() {
     const currentTime = Date.now();
 
@@ -254,24 +240,42 @@ function handleCombat() {
     playerUnits.forEach(pUnit => {
         if (currentTime - pUnit.lastAttackTime < pUnit.attackCooldown) return;
 
-        for (let i = enemyUnits.length - 1; i >= 0; i--) {
-            const eUnit = enemyUnits[i];
-            const distance = Math.abs(pUnit.x - eUnit.x);
-            if (distance <= pUnit.range && pUnit.x < eUnit.x) {
-                if (pUnit.type === 'archer') {
-                    spawnProjectile({ ...pUnit, owner: 'player' }, eUnit);
-                } else { // Melee
-                    eUnit.hp -= pUnit.attack;
-                    if (eUnit.hp <= 0) {
-                        enemyUnits.splice(i, 1);
-                        const attackerIndex = PLAYER_BASE_STATS.attackers.indexOf(eUnit);
-                        if (attackerIndex > -1) {
-                            PLAYER_BASE_STATS.attackers.splice(attackerIndex, 1);
-                        }
+        if (pUnit.type === 'archer') { // Ranged units like archers
+            let targetEnemyUnit = null;
+            let closestDistance = Infinity;
+            for (const eUnit of enemyUnits) {
+                const distance = eUnit.x - pUnit.x; // Center to center, positive if eUnit is to the right
+                if (distance > 0 && distance <= pUnit.range) { // Enemy is in front and in attack range
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        targetEnemyUnit = eUnit;
                     }
                 }
+            }
+            if (targetEnemyUnit) {
+                spawnProjectile({ ...pUnit, owner: 'player' }, targetEnemyUnit);
                 pUnit.lastAttackTime = currentTime;
-                break;
+            }
+        } else { // Melee units (Soldier, Tank)
+            let targetEnemyUnit = null;
+            // Melee attacks the first unit it's engaging with (closest due to movement)
+            for (const eUnit of enemyUnits) {
+                const distance = eUnit.x - pUnit.x; // Positive if eUnit is to the right
+                if (distance > 0 && distance <= pUnit.range) { // In range and eUnit is in front
+                    targetEnemyUnit = eUnit;
+                    break;
+                }
+            }
+            if (targetEnemyUnit) {
+                addVisualEffect('meleeHit', pUnit.x + UNIT_RADIUS, pUnit.y, targetEnemyUnit); // Effect near point of impact
+                targetEnemyUnit.hp -= pUnit.attack;
+                if (targetEnemyUnit.hp <= 0) {
+                    const index = enemyUnits.indexOf(targetEnemyUnit);
+                    if (index > -1) enemyUnits.splice(index, 1);
+                    const attackerIndex = PLAYER_BASE_STATS.attackers.indexOf(targetEnemyUnit);
+                    if (attackerIndex > -1) PLAYER_BASE_STATS.attackers.splice(attackerIndex, 1);
+                }
+                pUnit.lastAttackTime = currentTime;
             }
         }
     });
@@ -280,24 +284,41 @@ function handleCombat() {
     enemyUnits.forEach(eUnit => {
         if (currentTime - eUnit.lastAttackTime < eUnit.attackCooldown) return;
 
-        for (let i = playerUnits.length - 1; i >= 0; i--) {
-            const pUnit = playerUnits[i];
-            const distance = Math.abs(eUnit.x - pUnit.x);
-            if (distance <= eUnit.range && eUnit.x > pUnit.x) {
-                if (eUnit.type === 'archer') {
-                    spawnProjectile({ ...eUnit, owner: 'enemy' }, pUnit);
-                } else { // Melee
-                    pUnit.hp -= eUnit.attack;
-                    if (pUnit.hp <= 0) {
-                        playerUnits.splice(i, 1);
-                        const attackerIndex = ENEMY_BASE_STATS.attackers.indexOf(pUnit);
-                        if (attackerIndex > -1) {
-                            ENEMY_BASE_STATS.attackers.splice(attackerIndex, 1);
-                        }
+        if (eUnit.type === 'archer') {
+            let targetPlayerUnit = null;
+            let closestDistance = Infinity;
+            for (const pUnit of playerUnits) {
+                const distance = eUnit.x - pUnit.x; // Positive if pUnit is to the left
+                if (distance > 0 && distance <= eUnit.range) { // pUnit is in front and in range
+                    if (distance < closestDistance) {
+                        closestDistance = distance;
+                        targetPlayerUnit = pUnit;
                     }
                 }
+            }
+            if (targetPlayerUnit) {
+                spawnProjectile({ ...eUnit, owner: 'enemy' }, targetPlayerUnit);
                 eUnit.lastAttackTime = currentTime;
-                break;
+            }
+        } else { // Melee units
+            let targetPlayerUnit = null;
+            for (const pUnit of playerUnits) {
+                const distance = eUnit.x - pUnit.x; // Positive if pUnit is to the left
+                if (distance > 0 && distance <= eUnit.range) { // pUnit is in front and in range
+                    targetPlayerUnit = pUnit;
+                    break;
+                }
+            }
+            if (targetPlayerUnit) {
+                addVisualEffect('meleeHit', eUnit.x - UNIT_RADIUS, eUnit.y, targetPlayerUnit);
+                targetPlayerUnit.hp -= eUnit.attack;
+                if (targetPlayerUnit.hp <= 0) {
+                    const index = playerUnits.indexOf(targetPlayerUnit);
+                    if (index > -1) playerUnits.splice(index, 1);
+                    const attackerIndex = ENEMY_BASE_STATS.attackers.indexOf(targetPlayerUnit);
+                    if (attackerIndex > -1) ENEMY_BASE_STATS.attackers.splice(attackerIndex, 1);
+                }
+                eUnit.lastAttackTime = currentTime;
             }
         }
     });
@@ -347,6 +368,21 @@ function updateProjectiles() {
             projectiles.splice(i, 1);
         }
     }
+}
+
+function updateVisualEffects() {
+    const currentTime = Date.now();
+    visualEffects = visualEffects.filter(effect => {
+        if (currentTime - effect.startTime > effect.duration) {
+            return false; // Remove expired effect
+        }
+        if (effect.type === 'meleeHit') {
+            // Grow effect
+            const progress = (currentTime - effect.startTime) / effect.duration;
+            effect.radius = effect.maxRadius * Math.sin(progress * Math.PI); // Grows and shrinks
+        }
+        return true;
+    });
 }
 
 function handleBaseShooting() {
@@ -422,16 +458,19 @@ function handleBaseAttacks() {
     // Player units attack enemy base
     for (let i = playerUnits.length - 1; i >= 0; i--) {
         const unit = playerUnits[i];
-        const distanceToEnemyBaseEdge = ENEMY_BASE_X_START() - (unit.x + UNIT_RADIUS);
+        const distanceToEnemyBaseFront = ENEMY_BASE_X_START() - unit.x; // unit center to base front
 
-        if (distanceToEnemyBaseEdge <= unit.range && 
+        if (distanceToEnemyBaseFront <= unit.range &&
             currentTime - unit.lastAttackTime >= unit.attackCooldown) {
-            
-            const enemyInPath = enemyUnits.find(e => e.x > unit.x && Math.abs(e.x - unit.x) < unit.range && (e.x - unit.x) < distanceToEnemyBaseEdge + UNIT_RADIUS); 
-            if (enemyInPath) continue; 
-            
-            ENEMY_BASE_STATS.hp -= unit.attack;            
-            unit.lastAttackTime = currentTime; 
+
+            // Check if a closer enemy unit should be prioritized (already handled by handleCombat if unit is in range)
+            // This check ensures base is only attacked if no units are more immediate threats within its range.
+            const enemyInPath = enemyUnits.find(e => e.x > unit.x && (e.x - unit.x) < unit.range && (e.x - unit.x) < distanceToEnemyBaseFront);
+            if (enemyInPath) continue;
+            if (unit.type !== 'archer') addVisualEffect('meleeHit', unit.x + UNIT_RADIUS, unit.y); // Melee base hit
+
+            ENEMY_BASE_STATS.hp -= unit.attack;
+            unit.lastAttackTime = currentTime;
             if (!ENEMY_BASE_STATS.attackers.includes(unit)) {
                 ENEMY_BASE_STATS.attackers.push(unit);
             }
@@ -446,15 +485,17 @@ function handleBaseAttacks() {
     // Enemy units attack player base
     for (let i = enemyUnits.length - 1; i >= 0; i--) {
         const unit = enemyUnits[i];
-        const distanceToPlayerBaseEdge = (unit.x - UNIT_RADIUS) - PLAYER_BASE_X_END;
+        const distanceToPlayerBaseFront = unit.x - PLAYER_BASE_X_END; // unit center to base front
 
-        if (distanceToPlayerBaseEdge <= unit.range &&
+        if (distanceToPlayerBaseFront <= unit.range &&
             currentTime - unit.lastAttackTime >= unit.attackCooldown) {
 
-            const playerUnitInPath = playerUnits.find(p => p.x < unit.x && Math.abs(p.x - unit.x) < unit.range && (unit.x - p.x) < distanceToPlayerBaseEdge + UNIT_RADIUS);
+            const playerUnitInPath = playerUnits.find(p => p.x < unit.x && (unit.x - p.x) < unit.range && (unit.x - p.x) < distanceToPlayerBaseFront);
             if (playerUnitInPath) continue;
-            
-            PLAYER_BASE_STATS.hp -= unit.attack;            
+
+            if (unit.type !== 'archer') addVisualEffect('meleeHit', unit.x - UNIT_RADIUS, unit.y); // Melee base hit
+
+            PLAYER_BASE_STATS.hp -= unit.attack;
             unit.lastAttackTime = currentTime;
             if (!PLAYER_BASE_STATS.attackers.includes(unit)) {
                 PLAYER_BASE_STATS.attackers.push(unit);
@@ -474,15 +515,17 @@ function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     updateUnitPositions();
+    updateVisualEffects();
     handleCombat();
     updateProjectiles();
     handleBaseShooting();
     handleBaseAttacks();
-    if (!gameRunning) return; 
+    if (!gameRunning) return;
 
     drawBases();
     drawUnits();
     drawProjectiles();
+    drawVisualEffects();
     updateWargameUI();
 
     gameLoopId = requestAnimationFrame(gameLoop);
@@ -494,12 +537,12 @@ function spawnUnit(unitTypeKey) {
     if (playerGold >= unitData.cost) {
         playerGold -= unitData.cost;
         playerUnits.push({
-            ...unitData, 
-            type: unitTypeKey, 
+            ...unitData,
+            type: unitTypeKey,
             x: PLAYER_SPAWN_X,
             y: UNIT_Y_POSITION(),
-            hp: unitData.hp, 
-            lastAttackTime: 0 
+            hp: unitData.hp,
+            lastAttackTime: 0
         });
         updateWargameUI();
     } else {
@@ -540,11 +583,12 @@ function startWargameInternal() {
     ENEMY_BASE_STATS.hp = 1000;
     PLAYER_BASE_STATS.lastAttackTime = 0;
     ENEMY_BASE_STATS.lastAttackTime = 0;
-    PLAYER_BASE_STATS.attackers = []; 
-    ENEMY_BASE_STATS.attackers = [];  
+    PLAYER_BASE_STATS.attackers = [];
+    ENEMY_BASE_STATS.attackers = [];
     playerUnits = [];
+    visualEffects = [];
     enemyUnits = [];
-    projectiles = []; 
+    projectiles = [];
     gameRunning = true;
     if (wargameMessageDisplay) wargameMessageDisplay.textContent = "Das Spiel beginnt!";
     const startButton = document.getElementById('start-wargame-button');
@@ -553,7 +597,7 @@ function startWargameInternal() {
     playerGoldIntervalId = setInterval(() => {
         if (gameRunning) {
             playerGold += 10;
-            enemyGold += 7; 
+            enemyGold += 7;
             updateWargameUI();
         }
     }, 2000);
@@ -573,17 +617,23 @@ function endWargame(playerWon) {
     if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId);
 
     if (playerWon) {
-        if (wargameMessageDisplay) wargameMessageDisplay.textContent = "Du hast gewonnen! +250 SP";
-        gameState.sp += 250;
-        if (Math.random() < 0.1) { 
+        const baseReward = 250; // Base SP reward for winning
+        const bonusPercentage = 0.05; // 5% of current SP as bonus
+        const bonusSp = Math.floor(gameState.sp * bonusPercentage);
+        const totalSpGained = baseReward + bonusSp;
+
+        if (wargameMessageDisplay) wargameMessageDisplay.textContent = `Du hast gewonnen! +${formatNumber(totalSpGained)} SP`;
+        gameState.sp += totalSpGained;
+
+        if (Math.random() < 0.1) {
             gameState.uv += 1;
-            if (wargameMessageDisplay) wargameMessageDisplay.textContent += " +1 UV!";
+            if (wargameMessageDisplay) wargameMessageDisplay.textContent += " +1 UV!"; // Append to existing message
         }
     } else {
         if (wargameMessageDisplay) wargameMessageDisplay.textContent = "Du hast verloren!";
     }
-    updateWargameUI(); 
-    updateMainUI(); 
+    updateWargameUI();
+    updateMainUI();
 }
 
 function performInitialDraw() {
@@ -592,6 +642,7 @@ function performInitialDraw() {
         drawBases();
         drawUnits();
         drawProjectiles();
+        drawVisualEffects();
         updateWargameUI();
     }
 }
@@ -607,6 +658,7 @@ export async function initWargame() {
     enemyBaseHpDisplay = document.getElementById('wargame-enemy-base-hp');
     wargameMessageDisplay = document.getElementById('wargame-message');
     unitButtonsContainer = document.getElementById('wargame-unit-buttons');
+    unitStatsTooltipDisplay = document.getElementById('wargame-unit-stats-tooltip'); // Get the new tooltip element
 
     const startButton = document.getElementById('start-wargame-button');
     if (startButton) startButton.addEventListener('click', startWargameInternal);
@@ -623,13 +675,49 @@ export async function initWargame() {
     // Perform initial draw regardless of image loading success (drawBases has fallbacks)
     performInitialDraw();
 
-    unitButtonsContainer.innerHTML = ''; 
+    unitButtonsContainer.innerHTML = '';
     for (const unitKey in UNIT_TYPES) {
         const unit = UNIT_TYPES[unitKey];
         const button = document.createElement('button');
         button.dataset.unitType = unitKey;
         button.textContent = `${unit.name} (Kosten: ${unit.cost})`;
         button.addEventListener('click', () => spawnUnit(unitKey));
+
+        if (unitStatsTooltipDisplay) {
+            button.addEventListener('mouseover', (event) => {
+                const stats = UNIT_TYPES[unitKey];
+                unitStatsTooltipDisplay.innerHTML = `
+                    <strong>${stats.name}</strong><br>
+                    HP: ${stats.hp}<br>
+                    Angriff: ${stats.attack}<br>
+                    Geschw.: ${stats.speed}<br>
+                    Reichweite: ${stats.range === UNIT_RADIUS * 2.5 ? 'Nahkampf' : stats.range}
+                `;
+                unitStatsTooltipDisplay.style.display = 'block';
+                
+                const modalContent = unitStatsTooltipDisplay.parentElement; // This should be 'modal-content'
+                if (modalContent) {
+                    const modalRect = modalContent.getBoundingClientRect();
+                    // event.clientX/clientY are mouse coordinates relative to the viewport.
+                    // modalRect.left/top are modalContent's top-left corner relative to the viewport.
+                    // So, (event.clientX - modalRect.left) is the mouse's X position relative to modalContent's left edge.
+                    const x = event.clientX - modalRect.left + 15; // 15px offset from cursor
+                    const y = event.clientY - modalRect.top + 15;  // 15px offset from cursor
+
+                    unitStatsTooltipDisplay.style.left = x + 'px';
+                    unitStatsTooltipDisplay.style.top = y + 'px';
+                } else {
+                    // Fallback if parentElement isn't found, though unlikely here
+                    unitStatsTooltipDisplay.style.left = (event.pageX + 15) + 'px';
+                    unitStatsTooltipDisplay.style.top = (event.pageY + 15) + 'px';
+                }
+            });
+
+            button.addEventListener('mouseout', () => {
+                unitStatsTooltipDisplay.style.display = 'none';
+            });
+        }
+
         unitButtonsContainer.appendChild(button);
     }
 
@@ -646,21 +734,26 @@ export function openWargame() {
             if (startButton) startButton.disabled = false;
 
             playerGold = 100;
-            PLAYER_BASE_STATS.hp = 1000; 
-            ENEMY_BASE_STATS.hp = 1000;  
+            PLAYER_BASE_STATS.hp = 1000;
+            ENEMY_BASE_STATS.hp = 1000;
             PLAYER_BASE_STATS.lastAttackTime = 0;
             ENEMY_BASE_STATS.lastAttackTime = 0;
             PLAYER_BASE_STATS.attackers = [];
             ENEMY_BASE_STATS.attackers = [];
             playerUnits = [];
+            visualEffects = [];
             enemyUnits = [];
-            projectiles = []; 
+            projectiles = [];
 
-            if (ctx) { 
+            if (ctx) {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawBases();
                 drawUnits();
                 drawProjectiles();
+                drawVisualEffects();
+            }
+            if (unitStatsTooltipDisplay) { // Hide tooltip if it was visible
+                unitStatsTooltipDisplay.style.display = 'none';
             }
             updateWargameUI();
         }
